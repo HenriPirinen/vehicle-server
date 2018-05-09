@@ -47,25 +47,31 @@ const usbPort2parser = usbPort2.pipe(new Delimiter({
 
 usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 	let input = data.toString();
-	let newData = JSON.parse(input);
 	
-	client.set('temp',newData.temperature.temp_1); //Save value to redis
-
-	io.sockets.emit('dataset', {
-		message: newData.temperature.temp_1,
-		handle: 'Controller 1'	
-	});
+	if(validateJSON(input)){ //Validate message from arduino
+		let newData = JSON.parse(input);
+		
+		client.set('temp',newData.temperature.temp_1); //Save value to redis, temporary test
+	
+		io.sockets.emit('dataset', {
+			message: newData.temperature.temp_1,
+			handle: 'Controller 1'	
+		});
+	}
 	console.log("Controller 1" + input);
 });
 
 usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	let input = data.toString();
-	let newData = JSON.parse(input);
 
-	io.sockets.emit('dataset',{
-		message: newData.voltage.volt_1,
-		handle: 'Controller 2'
-	});
+	if(validateJSON(input)){ //Validate message from arduino
+		let newData = JSON.parse(input);
+		
+			io.sockets.emit('dataset',{
+				message: newData.voltage.volt_1,
+				handle: 'Controller 2'
+			});
+	}
 	console.log("Controller 2" + input);
 });
 	
@@ -85,3 +91,13 @@ io.on('connection', function(socket){
 		});
 	});
 });
+
+function validateJSON(string){ //Validate JSON string
+	try {
+		JSON.parse(string);
+	} catch (e){
+		console.log(e);
+		return false;
+	}
+	return true;
+}
