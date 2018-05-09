@@ -5,10 +5,10 @@ var mqtt = require('mqtt')
 const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
 
-var clientMQTT  = mqtt.connect('mqtt://192.168.2.45');
+var clientMQTT  = mqtt.connect('mqtt://192.168.2.45'); //Local MQTT server address
 
 clientMQTT.on('connect', function () {
-	clientMQTT.subscribe('testConnection')
+	clientMQTT.subscribe('testConnection');
 });
 
 
@@ -17,8 +17,8 @@ clientMQTT.on('message', function (topic, message) {
 	clientMQTT.end()
 });
 
-var client = redis.createClient(); //creates a new client
-client.on('connect', function() {
+var clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
+clientREDIS.on('connect', function() {
     console.log('Redis connected');
 });
 
@@ -50,8 +50,6 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 	
 	if(validateJSON(input)){ //Validate message from arduino
 		let newData = JSON.parse(input);
-		
-		client.set('temp',newData.temperature.temp_1); //Save value to redis, temporary test
 	
 		io.sockets.emit('dataset', {
 			message: newData.temperature.temp_1,
@@ -83,20 +81,43 @@ io.on('connection', function(socket){
 	});
 				
 	socket.on('command', function(data){ //Write command to arduino via USB
-		usbPort2.write(data.command, function(err) {
-			if (err) {
-			  return console.log('Error on write: ', err.message);
-			}
-			console.log('message written');
-		});
+
+		switch(data.target){
+			case "controller_1":
+				usbPort1.write(data.command, function(err) {
+					if (err) {
+					return console.log('Error on write: ', err.message);
+					}
+					console.log('message written');
+				});
+			break;
+			case "controller_2":
+				usbPort2.write(data.command, function(err) {
+					if (err) {
+					return console.log('Error on write: ', err.message);
+					}
+					console.log('message written');
+				});
+			break;
+			case "inverter":
+				//TODO
+				console.log("Command to inverter");
+			break;
+			case "server":
+				//TODO
+				console.log("Command to server");
+			break;
+			default:
+				console.log("Invalid target");
+		}
 	});
 });
 
 function validateJSON(string){ //Validate JSON string
 	try {
 		JSON.parse(string);
-	} catch (e){
-		console.log(e);
+	} catch (e) {
+		//console.log(e);
 		return false;
 	}
 	return true;
