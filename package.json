@@ -10,7 +10,7 @@
     "nodejs"
   ],
   "author": "Henri Pirinen",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "cluster": "^0.7.7",
     "express": "^4.16.3",
