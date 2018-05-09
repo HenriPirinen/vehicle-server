@@ -5,6 +5,8 @@ var mqtt = require('mqtt')
 const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
 
+//TODO
+
 /*var clientMQTT  = mqtt.connect('mqtt://192.168.2.45');
 
 clientMQTT.on('connect', function () {
