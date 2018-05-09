@@ -5,19 +5,17 @@ var mqtt = require('mqtt')
 const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
 
-//TODO
-
-/*var clientMQTT  = mqtt.connect('mqtt://192.168.2.45');
+var clientMQTT  = mqtt.connect('mqtt://192.168.2.45');
 
 clientMQTT.on('connect', function () {
-	client.subscribe('testConnection')
+	clientMQTT.subscribe('testConnection')
 });
 
 
 clientMQTT.on('message', function (topic, message) {
 	console.log(message.toString())
-	client.end()
-});*/
+	clientMQTT.end()
+});
 
 var client = redis.createClient(); //creates a new client
 client.on('connect', function() {
