@@ -4,6 +4,7 @@ var redis = require('redis');
 var mqtt = require('mqtt')
 const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
+const { exec } = require('child_process'); //For executing shell commands
 
 var clientMQTT  = mqtt.connect('mqtt://192.168.2.45'); //Local MQTT server address
 
@@ -25,6 +26,7 @@ clientREDIS.on('connect', function() {
 var app = express();
 var server = app.listen(4000, function(){ //Start server
 	console.log("Listening port 4000 @ localhost")
+	console.log("MQTT is subscribed to 'testConnection'");
 });
 
 var io = socket(server);
@@ -51,7 +53,7 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 	if(validateJSON(input)){ //Validate message from arduino
 		let newData = JSON.parse(input);
 	
-		io.sockets.emit('dataset', {
+		io.sockets.emit('dataset', { //Send dataset to client via websocket
 			message: newData.temperature.temp_1,
 			handle: 'Controller 1'	
 		});
@@ -65,7 +67,7 @@ usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	if(validateJSON(input)){ //Validate message from arduino
 		let newData = JSON.parse(input);
 		
-			io.sockets.emit('dataset',{
+			io.sockets.emit('dataset',{ //Send dataset to client via websocket
 				message: newData.voltage.volt_1,
 				handle: 'Controller 2'
 			});
@@ -88,7 +90,7 @@ io.on('connection', function(socket){
 					if (err) {
 					return console.log('Error on write: ', err.message);
 					}
-					console.log('message written');
+					console.log('Message written to controller 1');
 				});
 			break;
 			case "controller_2":
@@ -96,7 +98,7 @@ io.on('connection', function(socket){
 					if (err) {
 					return console.log('Error on write: ', err.message);
 					}
-					console.log('message written');
+					console.log('Message written to controller 2: ' + data.command);
 				});
 			break;
 			case "inverter":
@@ -104,8 +106,15 @@ io.on('connection', function(socket){
 				console.log("Command to inverter");
 			break;
 			case "server":
-				//TODO
 				console.log("Command to server");
+				exec(data.command, (err, stdout, stderr) => {
+					if (err) {
+					  console.log("Invalid command");
+					  return;
+					}
+					console.log(`stdout: ${stdout}`);
+					console.log(`stderr: ${stderr}`);
+				});
 			break;
 			default:
 				console.log("Invalid target");
