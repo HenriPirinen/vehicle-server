@@ -2,6 +2,7 @@ var express = require('express');
 var socket = require('socket.io');
 var redis = require('redis');
 var mqtt = require('mqtt');
+var formidable = require('formidable');
 const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
 const { exec } = require('child_process'); //For executing shell commands
@@ -9,13 +10,14 @@ const { exec } = require('child_process'); //For executing shell commands
 var clientMQTT = mqtt.connect('mqtt://192.168.2.45'); //Local MQTT server address
 
 clientMQTT.on('connect', function () {
-	clientMQTT.subscribe('testConnection');
+	clientMQTT.subscribe('vehicleData');
+	clientMQTT.subscribe('vehicleExternalCommand');
 });
 
 
 clientMQTT.on('message', function (topic, message) {
 	console.log(message.toString())
-	clientMQTT.end()
+	//clientMQTT.end()
 });
 
 var clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
@@ -57,9 +59,13 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 			message: input,
 			handle: 'Controller 1'	
 		});
+
+		
 	}
 	console.log(input);
 });
+
+clientMQTT.publish('testConnection', 'moi');
 
 usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	let input = data.toString();
@@ -71,10 +77,10 @@ usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 			message: input,
 			handle: 'Controller 2'
 		});
+		//clientMQTT.publish('testConnection', 'moi');
 	}
 	console.log(input);
 });
-
 
 io.on('connection', function (socket) {
 	socket.emit('webSocket', {		//Send notification to new client 
@@ -115,6 +121,7 @@ io.on('connection', function (socket) {
 					console.log(`stdout: ${stdout}`);
 					console.log(`stderr: ${stderr}`);
 				});
+				
 				break;
 			default:
 				console.log("Invalid target");
@@ -131,3 +138,9 @@ function validateJSON(string) { //Validate JSON string
 	}
 	return true;
 }
+
+var uploadData = () => {
+	clientMQTT.publish('vehicleData', '{some_data}');
+}
+
+setInterval(uploadData, 5000);
