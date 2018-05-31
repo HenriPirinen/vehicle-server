@@ -28,7 +28,7 @@ clientREDIS.on('connect', function () {
 var app = express();
 var server = app.listen(4000, function () { //Start server
 	console.log("Listening port 4000 @ localhost")
-	console.log("MQTT is subscribed to 'testConnection'");
+	console.log("MQTT is subscribed to 'vehicleData & vehicleExternalCommand'");
 });
 
 var io = socket(server);
