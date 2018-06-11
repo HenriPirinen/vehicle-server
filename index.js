@@ -7,7 +7,22 @@ const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
 const { exec } = require('child_process'); //For executing shell commands
 
-var clientMQTT = mqtt.connect('mqtt://192.168.2.45'); //Local MQTT server address
+var dataObject = {
+	'group': [
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]}, //Group 0 - 4
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
+		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]} //Group 5 - 9
+	]
+};
+
+var clientMQTT = mqtt.connect('mqtt://192.168.2.56'); //MQTT server address
 
 clientMQTT.on('connect', function () {
 	clientMQTT.subscribe('vehicleData');
@@ -16,8 +31,7 @@ clientMQTT.on('connect', function () {
 
 
 clientMQTT.on('message', function (topic, message) {
-	console.log(message.toString())
-	//clientMQTT.end()
+	if (topic !== 'vehicleData'){} //console.log(message.toString());
 });
 
 var clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
@@ -55,17 +69,22 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 
+		console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+		for(let i = 0; i < newData.voltage.length; i++){ //voltage.length == temperature.length
+			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
+			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
+			console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+		}
+
 		io.sockets.emit('dataset', { //Send dataset to client via websocket
 			message: input,
-			handle: 'Controller 1'	
+			handle: 'Controller 1'
 		});
 
-		
-	}
-	console.log(input);
-});
 
-clientMQTT.publish('testConnection', 'moi');
+	}
+	//console.log(input);
+});
 
 usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	let input = data.toString();
@@ -73,13 +92,19 @@ usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 
+		console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+		for(let i = 0; i < newData.voltage.length; i++){ //voltage.length == temperature.length
+			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
+			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
+			console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+		}
+
 		io.sockets.emit('dataset', { //Send dataset to client via websocket
 			message: input,
 			handle: 'Controller 2'
 		});
-		//clientMQTT.publish('testConnection', 'moi');
 	}
-	console.log(input);
+	//console.log(input);
 });
 
 io.on('connection', function (socket) {
@@ -121,7 +146,7 @@ io.on('connection', function (socket) {
 					console.log(`stdout: ${stdout}`);
 					console.log(`stderr: ${stderr}`);
 				});
-				
+
 				break;
 			default:
 				console.log("Invalid target");
@@ -140,7 +165,7 @@ function validateJSON(string) { //Validate JSON string
 }
 
 var uploadData = () => {
-	clientMQTT.publish('vehicleData', '{some_data}');
+	clientMQTT.publish('vehicleData', JSON.stringify(dataObject));
 }
 
-setInterval(uploadData, 5000);
+setInterval(uploadData, 300000);
