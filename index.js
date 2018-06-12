@@ -7,7 +7,7 @@ const SerialPort = require('serialport');
 const Delimiter = require('parser-delimiter');
 const { exec } = require('child_process'); //For executing shell commands
 
-var dataObject = {
+var dataObject = { //To remote server
 	'group': [
 		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
 		{"voltage": [1,1,1,1,1,1,1,1],"temperature": [1,1,1,1,1,1,1,1]},
@@ -47,11 +47,15 @@ var server = app.listen(4000, function () { //Start server
 
 var io = socket(server);
 
-const usbPort1 = new SerialPort('/dev/ttyUSB1', { //initiate USB
+const usbPort1 = new SerialPort('/dev/controller.1', { //initiate USB
 	baudRate: 9600
 });
 
-const usbPort2 = new SerialPort('/dev/ttyUSB0', {
+const usbPort2 = new SerialPort('/dev/controller.2', {
+	baudRate: 9600
+});
+
+const usbPort3 = new SerialPort('/dev/driver.1', {
 	baudRate: 9600
 });
 
@@ -63,17 +67,20 @@ const usbPort2parser = usbPort2.pipe(new Delimiter({
 	delimiter: '\n'
 }));
 
+const usbPort3parser = usbPort3.pipe(new Delimiter({
+	delimiter: '\n'
+}));
+
 usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 	let input = data.toString();
 
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
-
-		console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+		//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 		for(let i = 0; i < newData.voltage.length; i++){ //voltage.length == temperature.length
 			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+			//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 		}
 
 		io.sockets.emit('dataset', { //Send dataset to client via websocket
@@ -88,15 +95,14 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 
 usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	let input = data.toString();
-
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 
-		console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+		//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 		for(let i = 0; i < newData.voltage.length; i++){ //voltage.length == temperature.length
 			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+			//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 		}
 
 		io.sockets.emit('dataset', { //Send dataset to client via websocket
@@ -105,6 +111,14 @@ usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 		});
 	}
 	//console.log(input);
+});
+
+usbPort3parser.on('data', data => { //Real, Read data from 1st USB-port
+	let input = data.toString();
+	io.sockets.emit('driver',{
+		message: 'exec',
+		handle: 'driver'
+	});
 });
 
 io.on('connection', function (socket) {
@@ -123,7 +137,7 @@ io.on('connection', function (socket) {
 					}
 					console.log('Message written to controller 1');
 				});
-				break;
+			break;
 			case "controller_2":
 				usbPort2.write(data.command, function (err) {
 					if (err) {
@@ -131,11 +145,11 @@ io.on('connection', function (socket) {
 					}
 					console.log('Message written to controller 2: ' + data.command);
 				});
-				break;
+			break;
 			case "inverter":
 				//TODO
 				console.log("Command to inverter");
-				break;
+			break;
 			case "server":
 				console.log("Command to server");
 				exec(data.command, (err, stdout, stderr) => {
@@ -147,11 +161,76 @@ io.on('connection', function (socket) {
 					console.log(`stderr: ${stderr}`);
 				});
 
-				break;
+			break;
+			case "driver":
+				console.log('Driver');
+				console.log(data.command);
+				usbPort3.write(data.command.toString(), function (err) {
+					if (err) {
+						return console.log('Error on write: ', err.message);
+					}
+					console.log('Message written to driver');
+				});
+			break;
 			default:
 				console.log("Invalid target");
 		}
 	});
+
+	socket.on('update', function(command) {
+
+		switch(command.target){
+			case "arduino":
+				socket.emit('serverLog', {
+					message: 'Updating...',
+					handle: 'Server'
+				});
+				console.log('Updating microcontroller...');
+				exec('wget http://student.hamk.fi/~henri1515/electricVehicleDebug.ino -P ../arduinoSketch', (err, stdout, stderr) => {
+					if (err) {
+						console.log("Error downloading");
+						return;
+					}
+					//console.log(`stdout: ${stdout}`);
+					//console.log(`stderr: ${stderr}`);
+					console.log('Download complete. Compiling...');
+					exec('make -C ../arduinoSketch/', (err1, stdout1,stderr1) => {
+						if(err1){
+							console.log('Error compiling');
+							return;
+						}
+						//console.log(`stdout: ${stdout1}`);
+						//console.log(`stderr: ${stderr1}`);
+						console.log('Done compiling. Uploading...');
+						exec('make upload -C ../arduinoSketch/', (err2, stdout2,stderr2) => {
+							if(err1){
+								console.log('Error uploading');
+								return;
+							}
+							//console.log(`stdout: ${stdout2}`);
+							//console.log(`stderr: ${stderr2}`);
+							console.log('Microcontroller software update is complete. Cleaning directory...');
+							exec('rm electricVehicleDebug.ino && rm -rf build-nano328/', (err3, stdout3,stderr3) => {
+								if(err1){
+									console.log('Error cleaning');
+									return;
+								}
+								//console.log(`stdout: ${stdout2}`);
+								//console.log(`stderr: ${stderr2}`);
+								socket.emit('serverLog', {
+									message: 'Microcontroller is up to date',
+									handle: 'Server'
+								});
+								console.log('Done!');
+							})
+						})
+					})
+				});
+			break;
+			default:
+				console.log("Update");
+		}
+	})
 });
 
 function validateJSON(string) { //Validate JSON string
