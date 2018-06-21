@@ -12,16 +12,15 @@
   "author": "Henri Pirinen",
   "license": "MIT",
   "dependencies": {
-    "cluster": "^0.7.7",
+    "@types/node": "^10.3.5",
     "express": "^4.16.3",
-    "formidable": "^1.2.1",
     "mqtt": "^2.18.0",
-    "nodemailer": "^4.6.4",
-    "os": "^0.1.1",
     "parser-delimiter": "^1.0.2",
     "redis": "^2.8.0",
     "serialport": "^6.1.1",
-    "socket.io": "^2.1.0",
-    "util": "^0.10.3"
+    "socket.io": "^2.1.0"
+  },
+  "devDependencies": {
+    "ts-node": "^7.0.0"
   }
 }
