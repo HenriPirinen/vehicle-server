@@ -38,6 +38,8 @@ clientREDIS.on('connect', () => {
 	console.log('Redis connected');
 });
 
+clientREDIS.set('direction', '0');
+
 var app = express();
 var server = app.listen(4000, () => { //Start server
 	console.log("Listening port 4000 @ localhost")
@@ -71,7 +73,7 @@ const usbPort3parser = usbPort3.pipe(new Delimiter({
 }));
 
 usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
-	let input:string = data.toString();
+	let input: string = data.toString();
 
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
@@ -93,7 +95,7 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 });
 
 usbPort2parser.on('data', data => { //Read data from 2nd USB-port
-	let input:string = data.toString();
+	let input: string = data.toString();
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 
@@ -112,25 +114,43 @@ usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 	//console.log(input);
 });
 
-usbPort3parser.on('data', (data:any) => { //Real, Read data from 1st USB-port
+usbPort3parser.on('data', (data: any) => { //Real, Read data from 1st USB-port
 	let input:string = data.toString();
-	io.sockets.emit('driver', {
-		message: input,
-		handle: 'driver'
-	});
+	if (input.charAt(0) != '$') { //$ == request from driver
+		console.log("Response from the driver " + input);
+		io.sockets.emit('driver', {
+			message: input,
+			handle: 'driver'
+		});
+	} else {
+		console.log("Request from the driver: " + input);
+		switch(input.substring(0,10)){
+			case '$getParams':
+				clientREDIS.get('direction', (err, reply) => {
+					usbPort3.write(reply, function (err) {
+						if (err) {
+							return console.log('Error on write: ', err.message);
+						}
+					});
+				});
+				break;
+			default:
+				console.log('Invalid request from the driver: ' + input);
+		}
+	}
 });
 
-io.on('connection', (socket:any) => {
+io.on('connection', (socket: any) => {
 	socket.emit('webSocket', {		//Send notification to new client 
 		message: 'WebSocket connected!',
 		handle: 'Server'
 	});
 
-	socket.on('command', (data:any) => { //Write command to arduino via USB
+	socket.on('command', (data: any) => { //Write command to arduino via USB
 
 		switch (data.target) {
 			case "controller_1":
-				usbPort1.write(data.command, function (err:any) {
+				usbPort1.write(data.command, function (err: any) {
 					if (err) {
 						return console.log('Error on write: ', err.message);
 					}
@@ -154,39 +174,44 @@ io.on('connection', (socket:any) => {
 						console.log("Invalid command");
 						return;
 					}
-					console.log('stdout: ' + stdout +'');
+					console.log('stdout: ' + stdout + '');
 					console.log('stderr: ' + stderr + '');
 				});
 
 				break;
 			case "driver":
-				let driverCommand:string = '0';
-				let validCommad:boolean = true;
+				let driverCommand: string = '0';
+				let instantAction: boolean = true;
+				//Add command type to message
 				switch (data.command.toString()) {
 					case 'neutral':
-						driverCommand = '0';
+						instantAction = false;
+						clientREDIS.set('direction', '0');
 						break;
 					case 'reverse':
-						driverCommand = '1';
+						instantAction = false;
+						clientREDIS.set('direction', '1');
 						break;
 					case 'drive':
-						driverCommand = '2';
+						instantAction = false;
+						clientREDIS.set('direction', '2');
 						break;
 					case 'getSettings':
+						instantAction = true;
 						driverCommand = '99';
 						break;
 					default:
 						console.log('Invalid command: ' + data.command.toString());
-						validCommad = false;
+						instantAction = false;
 				}
-				console.log(driverCommand);
-				if (validCommad) {
+				console.log("Command to driver: " + data.command.toString() + "	| instantAction = " + instantAction);
+				if (instantAction) {
 					usbPort3.write(driverCommand, function (err) {
 						if (err) {
 							return console.log('Error on write: ', err.message);
 						}
 					});
-				}
+				} 
 				break;
 			default:
 				console.log("Invalid target: " + data.target);
@@ -202,28 +227,28 @@ io.on('connection', (socket:any) => {
 					handle: 'Server'
 				});
 				console.log('Updating microcontroller...');
-				exec('wget http://student.hamk.fi/~henri1515/electricVehicleDebug.ino -P ../arduinoSketch', function(err, stdout, stderr) {
+				exec('wget http://student.hamk.fi/~henri1515/electricVehicleDebug.ino -P ../arduinoSketch', function (err, stdout, stderr) {
 					if (err) {
 						console.log(stderr);
 						return;
 					}
 					//console.log(stdout);
 					console.log('Download complete. Compiling...');
-					exec('make -C ../arduinoSketch/', function(err, stdout, stderr) {
+					exec('make -C ../arduinoSketch/', function (err, stdout, stderr) {
 						if (err) {
 							console.log(stderr);
 							return;
 						}
 						//console.log(stdout);
 						console.log('Done compiling. Uploading...');
-						exec('make upload -C ../arduinoSketch/', function(err, stdout, stderr) {
+						exec('make upload -C ../arduinoSketch/', function (err, stdout, stderr) {
 							if (err) {
 								console.log(stderr);
 								return;
 							}
 							//console.log(stdout);
 							console.log('Microcontroller software update is complete. Cleaning directory...');
-							exec('rm ../arduinoSketch/electricVehicleDebug.ino && rm -rf ../arduinoSketch/build-nano328/', function(err, stdout, stderr) {
+							exec('rm ../arduinoSketch/electricVehicleDebug.ino && rm -rf ../arduinoSketch/build-nano328/', function (err, stdout, stderr) {
 								if (err) {
 									console.log(stderr);
 									return;
@@ -245,7 +270,7 @@ io.on('connection', (socket:any) => {
 	})
 });
 
-function validateJSON(string:string) { //Validate JSON string
+function validateJSON(string: string) { //Validate JSON string
 	try {
 		JSON.parse(string);
 	} catch (e) {
@@ -261,4 +286,4 @@ var uploadData = () => {
 
 //uploadData();
 
-setInterval(uploadData, 5000); //300000
+setInterval(uploadData, 300000);

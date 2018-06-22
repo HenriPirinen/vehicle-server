@@ -33,6 +33,7 @@ var clientREDIS = redis.createClient(); //Creates new redis client, redis will q
 clientREDIS.on('connect', function () {
     console.log('Redis connected');
 });
+clientREDIS.set('direction', '0');
 var app = express();
 var server = app.listen(4000, function () {
     console.log("Listening port 4000 @ localhost");
@@ -93,10 +94,29 @@ usbPort2parser.on('data', function (data) {
 });
 usbPort3parser.on('data', function (data) {
     var input = data.toString();
-    io.sockets.emit('driver', {
-        message: input,
-        handle: 'driver'
-    });
+    if (input.charAt(0) != '$') { //$ == request from driver
+        console.log("Response from the driver " + input);
+        io.sockets.emit('driver', {
+            message: input,
+            handle: 'driver'
+        });
+    }
+    else {
+        console.log("Request from the driver: " + input);
+        switch (input.substring(0, 10)) {
+            case '$getParams':
+                clientREDIS.get('direction', function (err, reply) {
+                    usbPort3.write(reply, function (err) {
+                        if (err) {
+                            return console.log('Error on write: ', err.message);
+                        }
+                    });
+                });
+                break;
+            default:
+                console.log('Invalid request from the driver: ' + input);
+        }
+    }
 });
 io.on('connection', function (socket) {
     socket.emit('webSocket', {
@@ -136,26 +156,31 @@ io.on('connection', function (socket) {
                 break;
             case "driver":
                 var driverCommand = '0';
-                var validCommad = true;
+                var instantAction = true;
+                //Add command type to message
                 switch (data.command.toString()) {
                     case 'neutral':
-                        driverCommand = '0';
+                        instantAction = false;
+                        clientREDIS.set('direction', '0');
                         break;
                     case 'reverse':
-                        driverCommand = '1';
+                        instantAction = false;
+                        clientREDIS.set('direction', '1');
                         break;
                     case 'drive':
-                        driverCommand = '2';
+                        instantAction = false;
+                        clientREDIS.set('direction', '2');
                         break;
                     case 'getSettings':
+                        instantAction = true;
                         driverCommand = '99';
                         break;
                     default:
                         console.log('Invalid command: ' + data.command.toString());
-                        validCommad = false;
+                        instantAction = false;
                 }
-                console.log(driverCommand);
-                if (validCommad) {
+                console.log("Command to driver: " + data.command.toString() + "	| instantAction = " + instantAction);
+                if (instantAction) {
                     usbPort3.write(driverCommand, function (err) {
                         if (err) {
                             return console.log('Error on write: ', err.message);
@@ -231,4 +256,4 @@ var uploadData = function () {
     clientMQTT.publish('vehicleData', JSON.stringify(dataObject));
 };
 //uploadData();
-setInterval(uploadData, 5000); //300000
+setInterval(uploadData, 300000);
