@@ -34,46 +34,46 @@ clientMQTT.on('message', (topic, message) => {
 	if (topic !== 'vehicleData') { } //console.log(message.toString());
 });
 
-var clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
+const clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
 clientREDIS.on('connect', () => {
 	console.log('Redis connected');
 });
 
 clientREDIS.set('direction', '0');
 
-var app = express();
-var server = app.listen(4000, () => { //Start server
+const app = express();
+const server = app.listen(4000, () => { //Start server
 	console.log("Listening port 4000 @ localhost")
 	console.log("MQTT is subscribed to 'vehicleData & vehicleExternalCommand'");
 });
 
-var io = socket(server);
+const io = socket(server);
 
-const usbPort1 = new SerialPort('/dev/controller.1', { //initiate USB
+const controller_1 = new SerialPort('/dev/controller.1', { //initiate USB
 	baudRate: 9600
 });
 
-const usbPort2 = new SerialPort('/dev/controller.2', {
+const controller_2 = new SerialPort('/dev/controller.2', {
 	baudRate: 9600
 });
 
-const usbPort3 = new SerialPort('/dev/driver.1', {
+const driver_1 = new SerialPort('/dev/driver.1', {
 	baudRate: 9600
 });
 
-const usbPort1parser = usbPort1.pipe(new Delimiter({ //Line change on USB == new dataset
+const controller_1_input = controller_1.pipe(new Delimiter({ //Line change on USB == new dataset
 	delimiter: '\n'
 }));
 
-const usbPort2parser = usbPort2.pipe(new Delimiter({
+const controller_2_input = controller_2.pipe(new Delimiter({
 	delimiter: '\n'
 }));
 
-const usbPort3parser = usbPort3.pipe(new Delimiter({
+const driver_1_input = driver_1.pipe(new Delimiter({
 	delimiter: '\n'
 }));
 
-usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
+controller_1_input.on('data', data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 
 	if (validateJSON(input)) { //Validate message from arduino
@@ -89,13 +89,10 @@ usbPort1parser.on('data', data => { //Real, Read data from 1st USB-port
 			message: input,
 			handle: 'Controller 1'
 		});
-
-
 	}
-	//console.log(input);
 });
 
-usbPort2parser.on('data', data => { //Read data from 2nd USB-port
+controller_2_input.on('data', data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
@@ -112,11 +109,10 @@ usbPort2parser.on('data', data => { //Read data from 2nd USB-port
 			handle: 'Controller 2'
 		});
 	}
-	//console.log(input);
 });
 
-usbPort3parser.on('data', (data: any) => { //Real, Read data from 1st USB-port
-	let input:string = data.toString();
+driver_1_input.on('data', (data: any) => { //Real, Read data from 1st USB-port
+	let input: string = data.toString();
 	if (input.charAt(0) != '$') { //$ == request from driver
 		console.log("Response from the driver " + input);
 		io.sockets.emit('driver', {
@@ -125,10 +121,10 @@ usbPort3parser.on('data', (data: any) => { //Real, Read data from 1st USB-port
 		});
 	} else {
 		console.log("Request from the driver: " + input);
-		switch(input.substring(0,10)){
+		switch (input.substring(0, 10)) { //Ignore \n at the end of input
 			case '$getParams':
 				clientREDIS.get('direction', (err, reply) => {
-					usbPort3.write(reply, function (err) {
+					driver_1.write(reply, function (err) {
 						if (err) {
 							return console.log('Error on write: ', err.message);
 						}
@@ -151,14 +147,14 @@ io.on('connection', (socket: any) => {
 
 		switch (data.target) {
 			case "controller_1":
-				usbPort1.write(data.command, function (err: any) {
+				controller_1.write(data.command, function (err: any) {
 					if (err) {
 						return console.log('Error on write: ', err.message);
 					}
 				});
 				break;
 			case "controller_2":
-				usbPort2.write(data.command, function (err) {
+				controller_2.write(data.command, function (err) {
 					if (err) {
 						return console.log('Error on write: ', err.message);
 					}
@@ -166,28 +162,26 @@ io.on('connection', (socket: any) => {
 				break;
 			case "inverter":
 				fetch("http://192.168.1.34/cmd?cmd=" + data.command)
-				.then( (res) => res.json())
-				.then( (result) => {
-					console.log(result);
-					socket.emit('inverterResponse', {
-						message: result,
-						handle: 'Server'
-					});
-				},
-				(error) => {
-					console.log('Error: ' + error);
-				}
-				)
+					.then((res) => res.json())
+					.then((result) => {
+						socket.emit('inverterResponse', {
+							message: result,
+							handle: 'Server'
+						});
+					},
+					(error) => {
+						console.log('Inverter: ' + error);
+					}
+					)
 				break;
 			case "server":
-				console.log("Command to server");
 				exec(data.command, (err, stdout, stderr) => {
 					if (err) {
 						console.log("Invalid command");
 						return;
 					}
-					console.log('stdout: ' + stdout + '');
-					console.log('stderr: ' + stderr + '');
+					console.log('Server: ' + stdout + '');
+					console.log('Server: ' + stderr + '');
 				});
 
 				break;
@@ -218,12 +212,12 @@ io.on('connection', (socket: any) => {
 				}
 				console.log("Command to driver: " + data.command.toString() + "	| instantAction = " + instantAction);
 				if (instantAction) {
-					usbPort3.write(driverCommand, function (err) {
+					driver_1.write(driverCommand, function (err) {
 						if (err) {
 							return console.log('Error on write: ', err.message);
 						}
 					});
-				} 
+				}
 				break;
 			default:
 				console.log("Invalid target: " + data.target);
@@ -295,7 +289,5 @@ function validateJSON(string: string) { //Validate JSON string
 var uploadData = () => {
 	clientMQTT.publish('vehicleData', JSON.stringify(dataObject));
 }
-
-//uploadData();
 
 setInterval(uploadData, 300000);

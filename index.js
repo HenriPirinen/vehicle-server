@@ -41,25 +41,25 @@ var server = app.listen(4000, function () {
     console.log("MQTT is subscribed to 'vehicleData & vehicleExternalCommand'");
 });
 var io = socket(server);
-var usbPort1 = new SerialPort('/dev/controller.1', {
+var controller_1 = new SerialPort('/dev/controller.1', {
     baudRate: 9600
 });
-var usbPort2 = new SerialPort('/dev/controller.2', {
+var controller_2 = new SerialPort('/dev/controller.2', {
     baudRate: 9600
 });
-var usbPort3 = new SerialPort('/dev/driver.1', {
+var driver_1 = new SerialPort('/dev/driver.1', {
     baudRate: 9600
 });
-var usbPort1parser = usbPort1.pipe(new Delimiter({
+var controller_1_input = controller_1.pipe(new Delimiter({
     delimiter: '\n'
 }));
-var usbPort2parser = usbPort2.pipe(new Delimiter({
+var controller_2_input = controller_2.pipe(new Delimiter({
     delimiter: '\n'
 }));
-var usbPort3parser = usbPort3.pipe(new Delimiter({
+var driver_1_input = driver_1.pipe(new Delimiter({
     delimiter: '\n'
 }));
-usbPort1parser.on('data', function (data) {
+controller_1_input.on('data', function (data) {
     var input = data.toString();
     if (validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
@@ -74,9 +74,8 @@ usbPort1parser.on('data', function (data) {
             handle: 'Controller 1'
         });
     }
-    //console.log(input);
 });
-usbPort2parser.on('data', function (data) {
+controller_2_input.on('data', function (data) {
     var input = data.toString();
     if (validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
@@ -91,9 +90,8 @@ usbPort2parser.on('data', function (data) {
             handle: 'Controller 2'
         });
     }
-    //console.log(input);
 });
-usbPort3parser.on('data', function (data) {
+driver_1_input.on('data', function (data) {
     var input = data.toString();
     if (input.charAt(0) != '$') { //$ == request from driver
         console.log("Response from the driver " + input);
@@ -104,10 +102,10 @@ usbPort3parser.on('data', function (data) {
     }
     else {
         console.log("Request from the driver: " + input);
-        switch (input.substring(0, 10)) {
+        switch (input.substring(0, 10)) { //Ignore \n at the end of input
             case '$getParams':
                 clientREDIS.get('direction', function (err, reply) {
-                    usbPort3.write(reply, function (err) {
+                    driver_1.write(reply, function (err) {
                         if (err) {
                             return console.log('Error on write: ', err.message);
                         }
@@ -127,14 +125,14 @@ io.on('connection', function (socket) {
     socket.on('command', function (data) {
         switch (data.target) {
             case "controller_1":
-                usbPort1.write(data.command, function (err) {
+                controller_1.write(data.command, function (err) {
                     if (err) {
                         return console.log('Error on write: ', err.message);
                     }
                 });
                 break;
             case "controller_2":
-                usbPort2.write(data.command, function (err) {
+                controller_2.write(data.command, function (err) {
                     if (err) {
                         return console.log('Error on write: ', err.message);
                     }
@@ -144,24 +142,22 @@ io.on('connection', function (socket) {
                 fetch("http://192.168.1.34/cmd?cmd=" + data.command)
                     .then(function (res) { return res.json(); })
                     .then(function (result) {
-                    console.log(result);
                     socket.emit('inverterResponse', {
                         message: result,
                         handle: 'Server'
                     });
                 }, function (error) {
-                    console.log('Error: ' + error);
+                    console.log('Inverter: ' + error);
                 });
                 break;
             case "server":
-                console.log("Command to server");
                 child_process_1.exec(data.command, function (err, stdout, stderr) {
                     if (err) {
                         console.log("Invalid command");
                         return;
                     }
-                    console.log('stdout: ' + stdout + '');
-                    console.log('stderr: ' + stderr + '');
+                    console.log('Server: ' + stdout + '');
+                    console.log('Server: ' + stderr + '');
                 });
                 break;
             case "driver":
@@ -191,7 +187,7 @@ io.on('connection', function (socket) {
                 }
                 console.log("Command to driver: " + data.command.toString() + "	| instantAction = " + instantAction);
                 if (instantAction) {
-                    usbPort3.write(driverCommand, function (err) {
+                    driver_1.write(driverCommand, function (err) {
                         if (err) {
                             return console.log('Error on write: ', err.message);
                         }
@@ -265,5 +261,4 @@ function validateJSON(string) {
 var uploadData = function () {
     clientMQTT.publish('vehicleData', JSON.stringify(dataObject));
 };
-//uploadData();
 setInterval(uploadData, 300000);
