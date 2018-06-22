@@ -6,6 +6,7 @@ var redis = require("redis");
 var mqtt = require("mqtt");
 var SerialPort = require("serialport");
 var Delimiter = require("parser-delimiter");
+var fetch = require("node-fetch");
 var child_process_1 = require("child_process");
 var dataObject = {
     'group': [
@@ -140,8 +141,17 @@ io.on('connection', function (socket) {
                 });
                 break;
             case "inverter":
-                //TODO
-                console.log("Command to inverter");
+                fetch("http://192.168.1.34/cmd?cmd=" + data.command)
+                    .then(function (res) { return res.json(); })
+                    .then(function (result) {
+                    console.log(result);
+                    socket.emit('inverterResponse', {
+                        message: result,
+                        handle: 'Server'
+                    });
+                }, function (error) {
+                    console.log('Error: ' + error);
+                });
                 break;
             case "server":
                 console.log("Command to server");

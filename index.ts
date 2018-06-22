@@ -4,6 +4,7 @@ import * as redis from 'redis';
 import * as mqtt from 'mqtt';
 import * as SerialPort from 'serialport';
 import * as Delimiter from 'parser-delimiter';
+import * as fetch from 'node-fetch';
 import { exec } from 'child_process';
 
 var dataObject = { //To remote server, remove unnecessary object
@@ -164,8 +165,19 @@ io.on('connection', (socket: any) => {
 				});
 				break;
 			case "inverter":
-				//TODO
-				console.log("Command to inverter");
+				fetch("http://192.168.1.34/cmd?cmd=" + data.command)
+				.then( (res) => res.json())
+				.then( (result) => {
+					console.log(result);
+					socket.emit('inverterResponse', {
+						message: result,
+						handle: 'Server'
+					});
+				},
+				(error) => {
+					console.log('Error: ' + error);
+				}
+				)
 				break;
 			case "server":
 				console.log("Command to server");
