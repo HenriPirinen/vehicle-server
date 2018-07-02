@@ -7,7 +7,7 @@ import * as Delimiter from 'parser-delimiter';
 import * as fetch from 'node-fetch';
 import { exec } from 'child_process';
 
-var dataObject = { //To remote server, remove unnecessary object
+var dataObject = { //Add log as an array with object
 	'group': [
 		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
 		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -161,16 +161,19 @@ io.on('connection', (socket: any) => {
 				});
 				break;
 			case "inverter":
-				fetch("http://192.168.1.34/cmd?cmd=" + data.command)
+				fetch("http://192.168.1.33/cmd?cmd=" + data.command)
 					.then((res) => res.json())
 					.then((result) => {
 						socket.emit('inverterResponse', {
-							message: result,
+							message: JSON.stringify(result),
 							handle: 'Server'
 						});
 					},
-					(error) => {
-						console.log('Inverter: ' + error);
+					(result) => {
+						socket.emit('inverterResponse', {
+							message: result.toString(),
+							handle: 'Server'
+						});
 					}
 					)
 				break;

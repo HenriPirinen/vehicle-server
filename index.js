@@ -139,15 +139,18 @@ io.on('connection', function (socket) {
                 });
                 break;
             case "inverter":
-                fetch("http://192.168.1.34/cmd?cmd=" + data.command)
+                fetch("http://192.168.1.33/cmd?cmd=" + data.command)
                     .then(function (res) { return res.json(); })
                     .then(function (result) {
                     socket.emit('inverterResponse', {
-                        message: result,
+                        message: JSON.stringify(result),
                         handle: 'Server'
                     });
-                }, function (error) {
-                    console.log('Inverter: ' + error);
+                }, function (result) {
+                    socket.emit('inverterResponse', {
+                        message: result.toString(),
+                        handle: 'Server'
+                    });
                 });
                 break;
             case "server":
