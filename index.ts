@@ -150,6 +150,11 @@ io.on('connection', (socket: any) => {
 				controller_1.write(data.command, function (err: any) {
 					if (err) {
 						return console.log('Error on write: ', err.message);
+					} else {
+						socket.emit('serverLog', {		//Send notification to new client 
+							message: '{"msg": "Command to controller 1: ' + data.command + '","importance":"Medium"}',
+							handle: 'Server'
+						});
 					}
 				});
 				break;
@@ -157,6 +162,11 @@ io.on('connection', (socket: any) => {
 				controller_2.write(data.command, function (err) {
 					if (err) {
 						return console.log('Error on write: ', err.message);
+					}  else {
+						socket.emit('serverLog', {		//Send notification to new client 
+							message: '{"msg": "Command to controller 2: ' + data.command + '","importance":"Medium"}',
+							handle: 'Server'
+						});
 					}
 				});
 				break;
@@ -232,7 +242,7 @@ io.on('connection', (socket: any) => {
 		switch (command.target) {
 			case "arduino":
 				socket.emit('serverLog', {
-					message: 'Updating...',
+					message: '{\"msg\":\"Downloading controller update.\",\"importance\":\"High\"}',
 					handle: 'Server'
 				});
 				console.log('Updating microcontroller...');
@@ -242,6 +252,10 @@ io.on('connection', (socket: any) => {
 						return;
 					}
 					//console.log(stdout);
+					socket.emit('serverLog', {
+						message: '{\"msg\":\"Compiling code.\",\"importance\":\"High\"}',
+						handle: 'Server'
+					});
 					console.log('Download complete. Compiling...');
 					exec('make -C ../arduinoSketch/', function (err, stdout, stderr) {
 						if (err) {
@@ -249,6 +263,10 @@ io.on('connection', (socket: any) => {
 							return;
 						}
 						//console.log(stdout);
+						socket.emit('serverLog', {
+							message: '{\"msg\":\"Uploading code to 1st. controller.\",\"importance\":\"High\"}',
+							handle: 'Server'
+						});
 						console.log('Done compiling. Uploading...');
 						exec('make upload -C ../arduinoSketch/', function (err, stdout, stderr) {
 							if (err) {
@@ -256,6 +274,10 @@ io.on('connection', (socket: any) => {
 								return;
 							}
 							//console.log(stdout);
+							socket.emit('serverLog', {
+								message: '{\"msg\":\"1st. controller update completed.\",\"importance\":\"High\"}',
+								handle: 'Server'
+							});
 							console.log('Microcontroller software update is complete. Cleaning directory...');
 							exec('rm ../arduinoSketch/electricVehicleDebug.ino && rm -rf ../arduinoSketch/build-nano328/', function (err, stdout, stderr) {
 								if (err) {
@@ -263,7 +285,7 @@ io.on('connection', (socket: any) => {
 									return;
 								}
 								socket.emit('serverLog', {
-									message: 'Microcontroller is up to date',
+									message: '{\"msg\":\"Controllers are up-to-date.\",\"importance\":\"High\"}',
 									handle: 'Server'
 								});
 								//console.log(stdout);
