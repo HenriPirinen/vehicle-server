@@ -7,6 +7,8 @@ var mqtt = require("mqtt");
 var SerialPort = require("serialport");
 var Delimiter = require("parser-delimiter");
 var fetch = require("node-fetch");
+// @ts-ignore
+var config = require("./serverCfg");
 var child_process_1 = require("child_process");
 var dataObject = {
     'group': [
@@ -22,7 +24,7 @@ var dataObject = {
         { "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] } //Group 5 - 9
     ]
 };
-var clientMQTT = mqtt.connect('mqtt://192.168.2.56'); //MQTT server address
+var clientMQTT = mqtt.connect('mqtt://' + config.address.remoteAddress); //MQTT server address
 clientMQTT.on('connect', function () {
     clientMQTT.subscribe('vehicleData');
     clientMQTT.subscribe('vehicleExternalCommand');
@@ -41,13 +43,13 @@ var server = app.listen(4000, function () {
     console.log("MQTT is subscribed to 'vehicleData & vehicleExternalCommand'");
 });
 var io = socket(server);
-var controller_1 = new SerialPort('/dev/controller.1', {
+var controller_1 = new SerialPort(config.port.controllerPort_1, {
     baudRate: 9600
 });
-var controller_2 = new SerialPort('/dev/controller.2', {
+var controller_2 = new SerialPort(config.port.controllerPort_2, {
     baudRate: 9600
 });
-var driver_1 = new SerialPort('/dev/driver.1', {
+var driver_1 = new SerialPort(config.port.driverPort, {
     baudRate: 9600
 });
 var controller_1_input = controller_1.pipe(new Delimiter({
@@ -119,7 +121,7 @@ driver_1_input.on('data', function (data) {
 });
 io.on('connection', function (socket) {
     socket.emit('webSocket', {
-        message: 'WebSocket connected!',
+        message: JSON.stringify({ weatherAPI: config.api.weather, mapAPI: config.api.maps, remoteAddress: config.address.remoteAddress }),
         handle: 'Server'
     });
     socket.on('command', function (data) {

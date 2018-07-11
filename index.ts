@@ -5,6 +5,9 @@ import * as mqtt from 'mqtt';
 import * as SerialPort from 'serialport';
 import * as Delimiter from 'parser-delimiter';
 import * as fetch from 'node-fetch';
+import * as fs from 'fs';
+// @ts-ignore
+import * as config from './serverCfg';
 import { exec } from 'child_process';
 
 var dataObject = { //Add log as an array with object
@@ -22,7 +25,7 @@ var dataObject = { //Add log as an array with object
 	]
 };
 
-const clientMQTT = mqtt.connect('mqtt://192.168.2.56'); //MQTT server address
+const clientMQTT = mqtt.connect('mqtt://' + config.address.remoteAddress); //MQTT server address
 
 clientMQTT.on('connect', () => {
 	clientMQTT.subscribe('vehicleData');
@@ -49,15 +52,15 @@ const server = app.listen(4000, () => { //Start server
 
 const io = socket(server);
 
-const controller_1 = new SerialPort('/dev/controller.1', { //initiate USB
+const controller_1 = new SerialPort(config.port.controllerPort_1, { //initiate USB
 	baudRate: 9600
 });
 
-const controller_2 = new SerialPort('/dev/controller.2', {
+const controller_2 = new SerialPort(config.port.controllerPort_2, {
 	baudRate: 9600
 });
 
-const driver_1 = new SerialPort('/dev/driver.1', {
+const driver_1 = new SerialPort(config.port.driverPort, {
 	baudRate: 9600
 });
 
@@ -139,7 +142,7 @@ driver_1_input.on('data', (data: any) => { //Real, Read data from 1st USB-port
 
 io.on('connection', (socket: any) => {
 	socket.emit('webSocket', {		//Send notification to new client 
-		message: 'WebSocket connected!',
+		message: JSON.stringify({weatherAPI: config.api.weather, mapAPI: config.api.maps, remoteAddress: config.address.remoteAddress}),
 		handle: 'Server'
 	});
 
