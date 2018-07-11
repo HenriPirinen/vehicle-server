@@ -15,6 +15,6 @@ module.exports = {
         &nbsp;&nbsp;&nbsp;&nbsp;driverPort: '/dev/driver.1'  
     &nbsp;&nbsp;},  
     &nbsp;&nbsp;address: {  
-        &nbsp;&nbsp;&nbsp;&nbsp;remoteAddress: '192.168.2.56'  
+        &nbsp;&nbsp;&nbsp;&nbsp;remoteAddress: 'INSERT_REMOTE_ADDRESS'  
     &nbsp;&nbsp;}  
 }
