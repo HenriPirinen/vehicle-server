@@ -169,7 +169,11 @@ io.on(`connection`, (socket: any) => {
 										weatherAPI: config.api.weather, 
 										mapAPI: config.api.maps, 
 										remoteAddress: config.address.remoteAddress,
-										driveDirection: result[0]
+										controller_1: config.port.controllerPort_1,
+										controller_2: config.port.controllerPort_2,
+										driverPort: config.port.driverPort,
+										driveDirection: result[0],
+										remoteUpdateInterval: config.interval / 60000
 									}),
 			handle: `Server`
 		});
@@ -269,7 +273,7 @@ io.on(`connection`, (socket: any) => {
 	});
 
 	socket.on('reconfigure', (data) => {
-		exec(`sudo bash restart.sh ${data.weather} ${data.map} ${data.address}`, function (err, stdout, stderr) {
+		exec(`sudo bash restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval*60000}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;
