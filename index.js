@@ -7,9 +7,14 @@ var mqtt = require("mqtt");
 var SerialPort = require("serialport");
 var Delimiter = require("parser-delimiter");
 var fetch = require("node-fetch");
+var process = require("process");
 // @ts-ignore
 var config = require("./serverCfg");
+var bluebird = require("bluebird");
 var child_process_1 = require("child_process");
+bluebird.promisifyAll(redis);
+// @ts-ignore
+process.title = 'regni-server';
 var dataObject = {
     'group': [
         { "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -61,6 +66,14 @@ var controller_2_input = controller_2.pipe(new Delimiter({
 var driver_1_input = driver_1.pipe(new Delimiter({
     delimiter: "\n"
 }));
+setTimeout(function () {
+    driver_1.write('99', function (err) {
+        if (err) {
+            return console.log("Error on write: " + err.message);
+        }
+        console.log('Get driver settings');
+    });
+}, 2000);
 controller_1_input.on("data", function (data) {
     var input = data.toString();
     if (validateJSON(input)) { //Validate message from arduino
@@ -95,13 +108,21 @@ controller_2_input.on("data", function (data) {
 });
 driver_1_input.on("data", function (data) {
     var input = data.toString();
-    if (input.charAt(0) != "$") { //$ == request from driver
-        io.sockets.emit("driver", {
-            message: input,
-            handle: "driver"
-        });
+    if (input.charAt(0) != "$") { //Send log message to the client
+        var _params = JSON.parse(input);
+        if (_params.type === "log") {
+            io.sockets.emit("driver", {
+                message: input,
+                handle: "driver"
+            });
+        }
+        else if (_params.type === "param") {
+            input = JSON.parse(input);
+            console.log(_params.name + " : " + _params.value);
+            clientREDIS.set(_params.name, _params.value);
+        }
     }
-    else {
+    else { //Get desired gear setting from redis and write it to driver
         console.log("Request from the driver: " + input);
         switch (input.substring(0, 10)) { //Ignore \n at the end of input
             case "$getParams":
@@ -119,9 +140,16 @@ driver_1_input.on("data", function (data) {
     }
 });
 io.on("connection", function (socket) {
-    socket.emit("webSocket", {
-        message: JSON.stringify({ weatherAPI: config.api.weather, mapAPI: config.api.maps, remoteAddress: config.address.remoteAddress }),
-        handle: "Server"
+    getParam().then(function (result) {
+        socket.emit("systemParam", {
+            message: JSON.stringify({
+                weatherAPI: config.api.weather,
+                mapAPI: config.api.maps,
+                remoteAddress: config.address.remoteAddress,
+                driveDirection: result[0]
+            }),
+            handle: "Server"
+        });
     });
     socket.on("command", function (data) {
         switch (data.target) {
@@ -213,6 +241,14 @@ io.on("connection", function (socket) {
                 console.log("Invalid target: " + data.target);
         }
     });
+    socket.on('reconfigure', function (data) {
+        child_process_1.exec("sudo bash restart.sh " + data.weather + " " + data.map + " " + data.address, function (err, stdout, stderr) {
+            if (err) {
+                console.log(stderr);
+                return;
+            }
+        });
+    });
     socket.on("update", function (command) {
         switch (command.target) {
             case "arduino":
@@ -288,4 +324,11 @@ function validateJSON(string) {
 var uploadData = function () {
     clientMQTT.publish("vehicleData", JSON.stringify(dataObject));
 };
+function getParam() {
+    var param = clientREDIS.getAsync("direction").then(function (reply) {
+        return reply;
+    });
+    // @ts-ignore
+    return Promise.all([param]);
+}
 setInterval(uploadData, 300000);

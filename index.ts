@@ -5,11 +5,16 @@ import * as mqtt from 'mqtt';
 import * as SerialPort from 'serialport';
 import * as Delimiter from 'parser-delimiter';
 import * as fetch from 'node-fetch';
-import * as fs from 'fs';
+import * as process from 'process';
 // @ts-ignore
 import * as config from './serverCfg';
+import * as bluebird from 'bluebird';
 import { exec } from 'child_process';
 
+bluebird.promisifyAll(redis);
+
+// @ts-ignore
+process.title = 'regni-server';
 var dataObject = { //Add log as an array with object
 	'group': [
 		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -76,6 +81,15 @@ const driver_1_input = driver_1.pipe(new Delimiter({
 	delimiter: `\n`
 }));
 
+setTimeout(function(){
+	driver_1.write('99', function (err) {
+		if (err) {
+			return console.log(`Error on write: ${err.message}`);
+		}
+		console.log('Get driver settings');
+	});
+}, 2000);
+
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 
@@ -116,12 +130,21 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 
 driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
-	if (input.charAt(0) != `$`) { //$ == request from driver
-		io.sockets.emit(`driver`, {
-			message: input,
-			handle: `driver`
-		});
-	} else {
+	if (input.charAt(0) != `$`) { //Send log message to the client
+		let _params = JSON.parse(input);
+		
+		if(_params.type === `log`){
+			io.sockets.emit(`driver`, {
+				message: input,
+				handle: `driver`
+			});
+		} else if(_params.type === `param`){
+			input = JSON.parse(input);
+			console.log(`${_params.name} : ${_params.value}`);
+			clientREDIS.set(_params.name, _params.value);
+		}
+
+	} else { //Get desired gear setting from redis and write it to driver
 		console.log("Request from the driver: " + input);
 		switch (input.substring(0, 10)) { //Ignore \n at the end of input
 			case `$getParams`:
@@ -140,9 +163,16 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 });
 
 io.on(`connection`, (socket: any) => {
-	socket.emit(`webSocket`, {		//Send notification to new client 
-		message: JSON.stringify({weatherAPI: config.api.weather, mapAPI: config.api.maps, remoteAddress: config.address.remoteAddress}),
-		handle: `Server`
+	getParam().then(function(result){
+		socket.emit(`systemParam`, {		//Send notification to new client
+			message: JSON.stringify({
+										weatherAPI: config.api.weather, 
+										mapAPI: config.api.maps, 
+										remoteAddress: config.address.remoteAddress,
+										driveDirection: result[0]
+									}),
+			handle: `Server`
+		});
 	});
 
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
@@ -238,6 +268,15 @@ io.on(`connection`, (socket: any) => {
 		}
 	});
 
+	socket.on('reconfigure', (data) => {
+		exec(`sudo bash restart.sh ${data.weather} ${data.map} ${data.address}`, function (err, stdout, stderr) {
+			if (err) {
+				console.log(stderr);
+				return;
+			}
+		})
+	})
+
 	socket.on(`update`, (command) => {
 
 		switch (command.target) {
@@ -314,6 +353,15 @@ function validateJSON(string: string) { //Validate JSON string
 
 var uploadData = () => {
 	clientMQTT.publish(`vehicleData`, JSON.stringify(dataObject));
+}
+
+function getParam(){
+
+	var param = clientREDIS.getAsync(`direction`).then(function(reply){
+		return reply;
+	})
+	// @ts-ignore
+	return Promise.all([param]);
 }
 
 setInterval(uploadData, 300000);
