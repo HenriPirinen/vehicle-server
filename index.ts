@@ -368,4 +368,4 @@ function getParam(){
 	return Promise.all([param]);
 }
 
-setInterval(uploadData, 300000);
+setInterval(uploadData, config.interval);
