@@ -310,6 +310,10 @@ io.on("connection", function (socket) {
                     });
                 });
                 break;
+            case "microcontroller":
+                var res = child_process_1.execSync("sudo bash softwareUpdate.sh -t ui -a check").toString();
+                console.log(res);
+                break;
             default:
                 console.log("Update");
         }
@@ -335,4 +339,4 @@ function getParam() {
     // @ts-ignore
     return Promise.all([param]);
 }
-setInterval(uploadData, 300000);
+setInterval(uploadData, config.interval);

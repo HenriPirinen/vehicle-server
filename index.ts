@@ -9,7 +9,7 @@ import * as process from 'process';
 // @ts-ignore
 import * as config from './serverCfg';
 import * as bluebird from 'bluebird';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 
 bluebird.promisifyAll(redis);
 
@@ -109,7 +109,7 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	}
 });
 
-controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
+controller_2_input.on(`data`, data => { //Read data from 2nd USB-port, (Connected to debugger)
 	let input: string = data.toString();
 	if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
@@ -338,6 +338,10 @@ io.on(`connection`, (socket: any) => {
 						})
 					})
 				});
+				break;
+			case "microcontroller":
+				let res = execSync(`sudo bash softwareUpdate.sh -t ui -a check`).toString();
+				console.log(res)
 				break;
 			default:
 				console.log("Update");
