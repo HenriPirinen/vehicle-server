@@ -254,69 +254,8 @@ io.on("connection", function (socket) {
         });
     });
     socket.on("update", function (command) {
-        switch (command.target) {
-            case "arduino":
-                socket.emit("serverLog", {
-                    message: JSON.stringify({ origin: "Server", msg: "Downloading controller update", importance: "High" }),
-                    handle: "Server"
-                });
-                console.log("Updating microcontroller...");
-                child_process_1.exec("wget http://student.hamk.fi/~henri1515/electricVehicleDebug.ino -P ../arduinoSketch", function (err, stdout, stderr) {
-                    if (err) {
-                        console.log(stderr);
-                        return;
-                    }
-                    //console.log(stdout);
-                    socket.emit("serverLog", {
-                        message: JSON.stringify({ origin: "Server", msg: "Compiling code...", importance: "High" }),
-                        handle: "Server"
-                    });
-                    console.log("Download complete. Compiling...");
-                    child_process_1.exec("make -C ../arduinoSketch/", function (err, stdout, stderr) {
-                        if (err) {
-                            console.log(stderr);
-                            return;
-                        }
-                        //console.log(stdout);
-                        socket.emit("serverLog", {
-                            message: JSON.stringify({ origin: "Server", msg: "Uploading code to 1st. controller...", importance: "High" }),
-                            handle: "Server"
-                        });
-                        console.log("Done compiling. Uploading...");
-                        child_process_1.exec("make upload -C ../arduinoSketch/", function (err, stdout, stderr) {
-                            if (err) {
-                                console.log(stderr);
-                                return;
-                            }
-                            //console.log(stdout);
-                            socket.emit("serverLog", {
-                                message: JSON.stringify({ origin: "Server", msg: "1st. controller update completed.", importance: "High" }),
-                                handle: "Server"
-                            });
-                            console.log("Microcontroller software update is complete. Cleaning directory...");
-                            child_process_1.exec("rm ../arduinoSketch/electricVehicleDebug.ino && rm -rf ../arduinoSketch/build-nano328/", function (err, stdout, stderr) {
-                                if (err) {
-                                    console.log(stderr);
-                                    return;
-                                }
-                                socket.emit("serverLog", {
-                                    message: JSON.stringify({ origin: "Server", msg: "Controllers are up-to-date.", importance: "High" }),
-                                    handle: "Server"
-                                });
-                                //console.log(stdout);
-                                console.log("Done!");
-                            });
-                        });
-                    });
-                });
-                break;
-            case "microcontroller":
-                var res = child_process_1.execSync("sudo bash softwareUpdate.sh -t ui -a check").toString();
-                console.log(res);
-                break;
-            default:
-                console.log("Update");
-        }
+        var res = child_process_1.execSync("sudo bash softwareUpdate.sh -t  " + command.target + " -a update").toString();
+        console.log(res);
     });
 });
 function validateJSON(string) {
