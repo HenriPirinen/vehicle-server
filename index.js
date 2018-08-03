@@ -76,34 +76,66 @@ setTimeout(function () {
 }, 2000);
 controller_1_input.on("data", function (data) {
     var input = data.toString();
-    if (validateJSON(input)) { //Validate message from arduino
-        var newData = JSON.parse(input);
-        //console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
-        for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
-            dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
-            dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-            //console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
-        }
-        io.sockets.emit("dataset", {
-            message: input,
-            handle: "Controller 1"
+    if (input.charAt(0) === '$') {
+        console.log('Controller 1 request');
+        controller_1.write('0', function (err) {
+            if (err) {
+                return console.log("Error on write: " + err.message);
+            }
         });
+    }
+    else if (validateJSON(input)) { //Validate message from arduino
+        var newData = JSON.parse(input);
+        if (newData.type !== "log") {
+            console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+            for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
+                dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
+                dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
+                console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+            }
+            io.sockets.emit("dataset", {
+                message: input,
+                handle: "Controller 1"
+            });
+        }
+        else {
+            io.sockets.emit("systemLog", {
+                message: input,
+                handle: "Controller 1"
+            });
+        }
     }
 });
 controller_2_input.on("data", function (data) {
     var input = data.toString();
-    if (validateJSON(input)) { //Validate message from arduino
-        var newData = JSON.parse(input);
-        //console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
-        for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
-            dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
-            dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-            //console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
-        }
-        io.sockets.emit("dataset", {
-            message: input,
-            handle: "Controller 2"
+    if (input.charAt(0) === '$') {
+        console.log('Controller 2 request');
+        controller_2.write('5', function (err) {
+            if (err) {
+                return console.log("Error on write: " + err.message);
+            }
         });
+    }
+    else if (validateJSON(input)) { //Validate message from arduino
+        var newData = JSON.parse(input);
+        if (newData.type !== "log") {
+            console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+            for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
+                dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
+                dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
+                console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+            }
+            io.sockets.emit("dataset", {
+                message: input,
+                handle: "Controller 2"
+            });
+        }
+        else {
+            io.sockets.emit("systemLog", {
+                message: input,
+                handle: "Controller 2"
+            });
+        }
     }
 });
 driver_1_input.on("data", function (data) {
@@ -111,7 +143,7 @@ driver_1_input.on("data", function (data) {
     if (input.charAt(0) != "$") { //Send log message to the client
         var _params = JSON.parse(input);
         if (_params.type === "log") {
-            io.sockets.emit("driver", {
+            io.sockets.emit("systemLog", {
                 message: input,
                 handle: "driver"
             });
@@ -163,7 +195,7 @@ io.on("connection", function (socket) {
                         return console.log("Error on write: " + err.message);
                     }
                     else {
-                        socket.emit("serverLog", {
+                        socket.emit("systemLog", {
                             //message: `{"msg": "Command to controller 1: ` + data.command + `","importance":"Medium"}`,
                             message: JSON.stringify({ origin: "Server", msg: "Command to 1st. controller: " + data.command, importance: "Medium" }),
                             handle: "Server"
@@ -177,7 +209,7 @@ io.on("connection", function (socket) {
                         return console.log("Error on write: " + err.message);
                     }
                     else {
-                        socket.emit("serverLog", {
+                        socket.emit("systemLog", {
                             message: JSON.stringify({ origin: "Server", msg: "Command to 2nd. controller: " + data.command, importance: "Medium" }),
                             handle: "Server"
                         });
@@ -254,7 +286,8 @@ io.on("connection", function (socket) {
         });
     });
     socket.on("update", function (command) {
-        var res = child_process_1.execSync("sudo bash softwareUpdate.sh -t  " + command.target + " -a update").toString();
+        console.log(command.target);
+        var res = child_process_1.execSync("sudo bash softwareUpdate.sh -t " + command.target + " -a update").toString();
         console.log(res);
     });
 });
@@ -263,7 +296,6 @@ function validateJSON(string) {
         JSON.parse(string);
     }
     catch (e) {
-        //console.log(e);
         return false;
     }
     return true;

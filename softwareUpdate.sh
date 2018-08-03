@@ -18,16 +18,29 @@ checkForUpdates () {
 }
 
 updateMicro () {
-#$1 path to micro directory
+#$1 path to directory
 	cd $1
 	sudo -u pi git pull origin master
-	make upload
-	rm -rf build-nano328/
-	cd ../nodeServer/
-	nodepid=$(pidof regni-server)
-	echo "Restarting server"
-	sudo kill -15 $nodepid
-	node /home/pi/Public/nodeServer/index.js
+	if [[ $1 = "/home/pi/Public/controllers/" ]]
+	then
+		echo "### CONTROLLER UPDATE ###"
+              	sed -i '2s/.*/ARDUINO_PORT = \/dev\/controller.1/' Makefile
+          	make upload
+               	rm -rf build-nano328/
+                sed -i '2s/.*/ARDUINO_PORT = \/dev\/controller.2/' Makefile
+                make upload
+                rm -rf build-nano328/
+                nodepid=$(pidof regni-server)
+                sudo kill -15 $nodepid
+		sudo -u pi node /home/pi/Public/nodeServer/index.js
+	else
+		echo "### DRIVER UPDATE ###"
+                make upload
+                rm -rf build-nano328/
+                nodepid=$(pidof regni-server)
+                sudo kill -15 $nodepid
+                sudo -u pi node /home/pi/Public/nodeServer/index.js
+	fi
 }
 while getopts t:a: option
 do
@@ -43,41 +56,29 @@ case "${TARGET}"
 in
 	microcontroller)
 		echo "Update controller"
-		#checkForUpdates ../arduinoSketch/
-		#updateMicro
-		#cd ../controller_1/
-		#pull
-		#make
-		#make upload
-		#rm build
-		#cd ../controller_2/
-		#pull
-		#make
-		#make upload
-		#rm buil
-		#cd ../nodeServer/
+		updateMicro /home/pi/Public/controllers/
+		#Update Makefile
+		updateMicro /home/pi/Public/controllers/
 		;;
 	ui)
 		echo "Update UI"
 		#checkForUpdates ../vehicle-ui/
-		cd ../vehicle-ui/
+		cd /home/pi/Public/vehicle-ui/
 		sudo -u pi git pull origin master #Get latest version from github
-		cd ../nodeServer/
 		;;
 	server)
 		echo "Update server"
 		#checkForUpdates ../nodeServer/
+		cd /home/pi/Public/nodeServer/
 		sudo -u pi git pull origin master
+		nodepid=$(pidof regni-server)
+		sudo kill -15 pidof $nodepid
 		;;
 	driver)
 		echo "Update driver"
-		updateMicro ../vehicle-driver/driver/
+		updateMicro /home/pi/Public/vehicle-driver/driver/
 		;;
 	*)
 		echo "Invalid target";;
 esac
-#wget $SOURCE -P ../arduinoSketch
-#make -C ../arduinoSketch/
-#make upload -C ../arduinoSketch/
-#rm ../arduinoSketch/electricVehicleDebug.ino && rm -rf ../arduinoSketch/build-nano328/
 echo "DONE"

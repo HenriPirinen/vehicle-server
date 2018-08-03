@@ -81,7 +81,7 @@ const driver_1_input = driver_1.pipe(new Delimiter({
 	delimiter: `\n`
 }));
 
-setTimeout(function(){
+setTimeout(function () {
 	driver_1.write('99', function (err) {
 		if (err) {
 			return console.log(`Error on write: ${err.message}`);
@@ -92,39 +92,65 @@ setTimeout(function(){
 
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
-
-	if (validateJSON(input)) { //Validate message from arduino
+	if (input.charAt(0) === '$') {
+		console.log('Controller 1 request');
+		controller_1.write('0', function (err) {
+			if (err) {
+				return console.log(`Error on write: ${err.message}`);
+			}
+		});
+	} else if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
-		//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+		if (newData.type !== "log") {
+		console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 		for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
 			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+			console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 		}
 
 		io.sockets.emit(`dataset`, { //Send dataset to client via websocket
 			message: input,
 			handle: `Controller 1`
 		});
+		} else {
+			io.sockets.emit(`systemLog`, { //Send dataset to client via websocket
+				message: input,
+				handle: `Controller 1`
+			});
+		}
 	}
 });
 
 controller_2_input.on(`data`, data => { //Read data from 2nd USB-port, (Connected to debugger)
 	let input: string = data.toString();
-	if (validateJSON(input)) { //Validate message from arduino
-		let newData = JSON.parse(input);
-
-		//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
-		for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
-			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
-			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
-		}
-
-		io.sockets.emit(`dataset`, { //Send dataset to client via websocket
-			message: input,
-			handle: `Controller 2`
+	if (input.charAt(0) === '$') {
+		console.log('Controller 2 request');
+		controller_2.write('5', function (err) {
+			if (err) {
+				return console.log(`Error on write: ${err.message}`);
+			}
 		});
+	} else if (validateJSON(input)) { //Validate message from arduino
+		let newData = JSON.parse(input);
+		if (newData.type !== "log") {
+			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
+				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
+				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
+				console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+			}
+
+			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
+				message: input,
+				handle: `Controller 2`
+			});
+		} else {
+			io.sockets.emit(`systemLog`, { //Send log to client via websocket
+				message: input,
+				handle: `Controller 2`
+			});
+		}
 	}
 });
 
@@ -132,13 +158,13 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) != `$`) { //Send log message to the client
 		let _params = JSON.parse(input);
-		
-		if(_params.type === `log`){
-			io.sockets.emit(`driver`, {
+
+		if (_params.type === `log`) {
+			io.sockets.emit(`systemLog`, {
 				message: input,
 				handle: `driver`
 			});
-		} else if(_params.type === `param`){
+		} else if (_params.type === `param`) {
 			input = JSON.parse(input);
 			console.log(`${_params.name} : ${_params.value}`);
 			clientREDIS.set(_params.name, _params.value);
@@ -163,18 +189,18 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 });
 
 io.on(`connection`, (socket: any) => {
-	getParam().then(function(result){
+	getParam().then(function (result) {
 		socket.emit(`systemParam`, {		//Send notification to new client
 			message: JSON.stringify({
-										weatherAPI: config.api.weather, 
-										mapAPI: config.api.maps, 
-										remoteAddress: config.address.remoteAddress,
-										controller_1: config.port.controllerPort_1,
-										controller_2: config.port.controllerPort_2,
-										driverPort: config.port.driverPort,
-										driveDirection: result[0],
-										remoteUpdateInterval: config.interval / 60000
-									}),
+				weatherAPI: config.api.weather,
+				mapAPI: config.api.maps,
+				remoteAddress: config.address.remoteAddress,
+				controller_1: config.port.controllerPort_1,
+				controller_2: config.port.controllerPort_2,
+				driverPort: config.port.driverPort,
+				driveDirection: result[0],
+				remoteUpdateInterval: config.interval / 60000
+			}),
 			handle: `Server`
 		});
 	});
@@ -187,9 +213,9 @@ io.on(`connection`, (socket: any) => {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
 					} else {
-						socket.emit(`serverLog`, {		//Send notification to new client 
+						socket.emit(`systemLog`, {		//Send notification to new client 
 							//message: `{"msg": "Command to controller 1: ` + data.command + `","importance":"Medium"}`,
-							message: JSON.stringify({origin:"Server", msg: `Command to 1st. controller: ${data.command}`, importance: `Medium`}),
+							message: JSON.stringify({ origin: "Server", msg: `Command to 1st. controller: ${data.command}`, importance: `Medium` }),
 							handle: `Server`
 						});
 					}
@@ -199,9 +225,9 @@ io.on(`connection`, (socket: any) => {
 				controller_2.write(data.command, function (err) {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
-					}  else {
-						socket.emit(`serverLog`, {		//Send notification to new client 
-							message: JSON.stringify({origin:"Server", msg: `Command to 2nd. controller: ${data.command}`, importance: `Medium`}),
+					} else {
+						socket.emit(`systemLog`, {		//Send notification to new client 
+							message: JSON.stringify({ origin: "Server", msg: `Command to 2nd. controller: ${data.command}`, importance: `Medium` }),
 							handle: `Server`
 						});
 					}
@@ -273,7 +299,7 @@ io.on(`connection`, (socket: any) => {
 	});
 
 	socket.on('reconfigure', (data) => {
-		exec(`sudo bash restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval*60000}`, function (err, stdout, stderr) {
+		exec(`sudo bash restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;
@@ -282,7 +308,8 @@ io.on(`connection`, (socket: any) => {
 	})
 
 	socket.on(`update`, (command) => {
-		let res = execSync(`sudo bash softwareUpdate.sh -t  ${command.target} -a update`).toString();
+		console.log(command.target);
+		let res = execSync(`sudo bash softwareUpdate.sh -t ${command.target} -a update`).toString();
 		console.log(res)
 	})
 });
@@ -291,7 +318,6 @@ function validateJSON(string: string) { //Validate JSON string
 	try {
 		JSON.parse(string);
 	} catch (e) {
-		//console.log(e);
 		return false;
 	}
 	return true;
@@ -301,9 +327,9 @@ var uploadData = () => {
 	clientMQTT.publish(`vehicleData`, JSON.stringify(dataObject));
 }
 
-function getParam(){
+function getParam() {
 
-	var param = clientREDIS.getAsync(`direction`).then(function(reply){
+	var param = clientREDIS.getAsync(`direction`).then(function (reply) {
 		return reply;
 	})
 	// @ts-ignore
