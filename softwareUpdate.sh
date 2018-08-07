@@ -1,47 +1,21 @@
 #!/bin/bash
-checkForUpdates () {
-	cd $1
-	UPSTREAM=${1:-'@{u}'}
-	LOCAL=$(git rev-parse @)
-	REMOTE=$(git rev-parse "$UPSTREAM")
-	BASE=$(git merge-base @ origin/master)
-	if [ $LOCAL = $REMOTE ]; then
-		echo "Up-to-date"
-	elif [ $LOCAL = $BASE ]; then
-		echo "Update available"
-	elif [ $REMOTE = $BASE ]; then
-		echo "Ahead"
-	else
-		echo "Diverged"
-	fi
-	cd ../nodeServer/
-}
-
-updateMicro () {
-#$1 path to directory
-	cd $1
-	sudo -u pi git pull origin master
-	if [[ $1 = "/home/pi/Public/controllers/" ]]
-	then
-		echo "### CONTROLLER UPDATE ###"
-              	sed -i '2s/.*/ARDUINO_PORT = \/dev\/controller.1/' Makefile
-          	make upload
-               	rm -rf build-nano328/
-                sed -i '2s/.*/ARDUINO_PORT = \/dev\/controller.2/' Makefile
-                make upload
-                rm -rf build-nano328/
-                nodepid=$(pidof regni-server)
-                sudo kill -15 $nodepid
-		sudo -u pi node /home/pi/Public/nodeServer/index.js
-	else
-		echo "### DRIVER UPDATE ###"
-                make upload
-                rm -rf build-nano328/
-                nodepid=$(pidof regni-server)
-                sudo kill -15 $nodepid
-                sudo -u pi node /home/pi/Public/nodeServer/index.js
-	fi
-}
+#checkForUpdates () {
+#	cd $1
+#	UPSTREAM=${1:-'@{u}'}
+#	LOCAL=$(git rev-parse @)
+#	REMOTE=$(git rev-parse "$UPSTREAM")
+#	BASE=$(git merge-base @ origin/master)
+#	if [ $LOCAL = $REMOTE ]; then
+#		echo "Up-to-date"
+#	elif [ $LOCAL = $BASE ]; then
+#		echo "Update available"
+#	elif [ $REMOTE = $BASE ]; then
+#		echo "Ahead"
+#	else
+#		echo "Diverged"
+#	fi
+#	cd ../nodeServer/
+#}
 while getopts t:a: option
 do
 case "${option}"
@@ -55,10 +29,18 @@ echo $ACTION
 case "${TARGET}"
 in
 	microcontroller)
-		echo "Update controller"
-		updateMicro /home/pi/Public/controllers/
-		#Update Makefile
-		updateMicro /home/pi/Public/controllers/
+ 		echo "### CONTROLLER UPDATE ###"
+		cd /home/pi/Public/controllers/
+		sudo -u pi git pull origin master
+                sed -i '2s/.*/ARDUINO_PORT = \/dev\/controller.1/' Makefile
+                make upload #>> /home/pi/Public/nodeServer/log
+                rm -rf build-nano328/
+                sed -i '2s/.*/ARDUINO_PORT = \/dev\/controller.2/' Makefile
+                make upload #>> /home/pi/Public/nodeServer/log
+                rm -rf build-nano328/
+		nodepid=$(pidof regni-server)
+                sudo kill -15 $nodepid
+                sudo -u pi node /home/pi/Public/nodeServer/index.js #>> /home/pi/Public/nodeServer/nodelog
 		;;
 	ui)
 		echo "Update UI"
@@ -75,10 +57,17 @@ in
 		sudo kill -15 pidof $nodepid
 		;;
 	driver)
-		echo "Update driver"
-		updateMicro /home/pi/Public/vehicle-driver/driver/
+		echo "### DRIVER UPDATE ###" #>> /home/pi/Public/nodeServer/log1
+		cd /home/pi/Public/vehicle-driver/driver/
+		sudo -u pi git pull origin master #>> /home/pi/Public/nodeServer/log1
+                make upload >> #/home/pi/Public/nodeServer/log
+                rm -rf build-nano328/
+		nodepid=$(pidof regni-server)
+                sudo kill -15 $nodepid
+                sudo -u pi node /home/pi/Public/nodeServer/index.js #>> /home/pi/Public/nodeServer/nodelog
 		;;
 	*)
 		echo "Invalid target";;
 esac
 echo "DONE"
+exit 0

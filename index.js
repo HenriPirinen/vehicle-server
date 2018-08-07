@@ -278,7 +278,7 @@ io.on("connection", function (socket) {
         }
     });
     socket.on('reconfigure', function (data) {
-        child_process_1.exec("sudo bash restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000, function (err, stdout, stderr) {
+        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000, function (err, stdout, stderr) {
             if (err) {
                 console.log(stderr);
                 return;
@@ -287,8 +287,12 @@ io.on("connection", function (socket) {
     });
     socket.on("update", function (command) {
         console.log(command.target);
-        var res = child_process_1.execSync("sudo bash softwareUpdate.sh -t " + command.target + " -a update").toString();
-        console.log(res);
+        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t " + command.target + " -a update", function (err, stdout, stderr) {
+            if (err) {
+                console.log(stderr);
+                return;
+            }
+        });
     });
 });
 function validateJSON(string) {

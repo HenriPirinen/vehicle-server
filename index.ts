@@ -206,7 +206,6 @@ io.on(`connection`, (socket: any) => {
 	});
 
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
-
 		switch (data.target) {
 			case "controller_1":
 				controller_1.write(data.command, function (err: any) {
@@ -299,7 +298,7 @@ io.on(`connection`, (socket: any) => {
 	});
 
 	socket.on('reconfigure', (data) => {
-		exec(`sudo bash restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
+		exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;
@@ -309,8 +308,12 @@ io.on(`connection`, (socket: any) => {
 
 	socket.on(`update`, (command) => {
 		console.log(command.target);
-		let res = execSync(`sudo bash softwareUpdate.sh -t ${command.target} -a update`).toString();
-		console.log(res)
+		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function(err, stdout, stderr){
+			if (err) {
+				console.log(stderr);
+				return;
+			}
+		})
 	})
 });
 
