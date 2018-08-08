@@ -60,7 +60,7 @@ in
 		echo "### DRIVER UPDATE ###" #>> /home/pi/Public/nodeServer/log1
 		cd /home/pi/Public/vehicle-driver/driver/
 		sudo -u pi git pull origin master #>> /home/pi/Public/nodeServer/log1
-                make upload >> #/home/pi/Public/nodeServer/log
+                make upload #>> /home/pi/Public/nodeServer/log
                 rm -rf build-nano328/
 		nodepid=$(pidof regni-server)
                 sudo kill -15 $nodepid

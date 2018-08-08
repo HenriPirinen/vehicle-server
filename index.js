@@ -86,7 +86,7 @@ controller_1_input.on("data", function (data) {
     }
     else if (validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
-        if (newData.type !== "log") {
+        if (newData.type === "data") {
             console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
             for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
                 dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
@@ -95,13 +95,19 @@ controller_1_input.on("data", function (data) {
             }
             io.sockets.emit("dataset", {
                 message: input,
-                handle: "Controller 1"
+                handle: "Controller_1"
             });
         }
-        else {
+        else if (newData.type === "log") {
             io.sockets.emit("systemLog", {
                 message: input,
-                handle: "Controller 1"
+                handle: "Controller_1"
+            });
+        }
+        else if (newData.type === "param") {
+            io.sockets.emit("systemState", {
+                message: input,
+                handle: "Controller_1"
             });
         }
     }
@@ -118,7 +124,7 @@ controller_2_input.on("data", function (data) {
     }
     else if (validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
-        if (newData.type !== "log") {
+        if (newData.type === "data") {
             console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
             for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
                 dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
@@ -127,13 +133,19 @@ controller_2_input.on("data", function (data) {
             }
             io.sockets.emit("dataset", {
                 message: input,
-                handle: "Controller 2"
+                handle: "Controller_2"
             });
         }
-        else {
+        else if (newData.type === "log") {
             io.sockets.emit("systemLog", {
                 message: input,
-                handle: "Controller 2"
+                handle: "Controller_2"
+            });
+        }
+        else if (newData.type === "param") {
+            io.sockets.emit("systemState", {
+                message: input,
+                handle: "Controller_2"
             });
         }
     }
@@ -190,13 +202,14 @@ io.on("connection", function (socket) {
     socket.on("command", function (data) {
         switch (data.target) {
             case "controller_1":
+                console.log(data.target);
+                console.log(data.command);
                 controller_1.write(data.command, function (err) {
                     if (err) {
                         return console.log("Error on write: " + err.message);
                     }
                     else {
                         socket.emit("systemLog", {
-                            //message: `{"msg": "Command to controller 1: ` + data.command + `","importance":"Medium"}`,
                             message: JSON.stringify({ origin: "Server", msg: "Command to 1st. controller: " + data.command, importance: "Medium" }),
                             handle: "Server"
                         });
@@ -204,6 +217,8 @@ io.on("connection", function (socket) {
                 });
                 break;
             case "controller_2":
+                console.log(data.target);
+                console.log(data.command);
                 controller_2.write(data.command, function (err) {
                     if (err) {
                         return console.log("Error on write: " + err.message);

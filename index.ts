@@ -101,22 +101,27 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 		});
 	} else if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
-		if (newData.type !== "log") {
-		console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
-		for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
-			dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
-			dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
-		}
+		if (newData.type === "data") {
+			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
+				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
+				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
+				console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+			}
 
-		io.sockets.emit(`dataset`, { //Send dataset to client via websocket
-			message: input,
-			handle: `Controller 1`
-		});
-		} else {
+			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
+				message: input,
+				handle: `Controller_1`
+			});
+		} else if (newData.type === "log") {
 			io.sockets.emit(`systemLog`, { //Send dataset to client via websocket
 				message: input,
-				handle: `Controller 1`
+				handle: `Controller_1`
+			});
+		} else if (newData.type === "param") {
+			io.sockets.emit(`systemState`, { //Send log to client via websocket
+				message: input,
+				handle: `Controller_1`
 			});
 		}
 	}
@@ -133,7 +138,7 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port, (Connecte
 		});
 	} else if (validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
-		if (newData.type !== "log") {
+		if (newData.type === "data") {
 			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
 				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
@@ -143,12 +148,17 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port, (Connecte
 
 			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
 				message: input,
-				handle: `Controller 2`
+				handle: `Controller_2`
 			});
-		} else {
+		} else if (newData.type === "log") {
 			io.sockets.emit(`systemLog`, { //Send log to client via websocket
 				message: input,
-				handle: `Controller 2`
+				handle: `Controller_2`
+			});
+		} else if (newData.type === "param") {
+			io.sockets.emit(`systemState`, { //Send log to client via websocket
+				message: input,
+				handle: `Controller_2`
 			});
 		}
 	}
@@ -208,12 +218,13 @@ io.on(`connection`, (socket: any) => {
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
 		switch (data.target) {
 			case "controller_1":
+				console.log(data.target);
+				console.log(data.command);
 				controller_1.write(data.command, function (err: any) {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
 					} else {
 						socket.emit(`systemLog`, {		//Send notification to new client 
-							//message: `{"msg": "Command to controller 1: ` + data.command + `","importance":"Medium"}`,
 							message: JSON.stringify({ origin: "Server", msg: `Command to 1st. controller: ${data.command}`, importance: `Medium` }),
 							handle: `Server`
 						});
@@ -221,6 +232,8 @@ io.on(`connection`, (socket: any) => {
 				});
 				break;
 			case "controller_2":
+				console.log(data.target);
+				console.log(data.command);
 				controller_2.write(data.command, function (err) {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
@@ -308,7 +321,7 @@ io.on(`connection`, (socket: any) => {
 
 	socket.on(`update`, (command) => {
 		console.log(command.target);
-		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function(err, stdout, stderr){
+		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;
