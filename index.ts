@@ -30,6 +30,15 @@ var dataObject = { //Add log as an array with object
 	]
 };
 
+/** 
+ * @param {integer array} groupChargeStatus
+ * When server starts, all pins are set to zero on controller. (New serial connection will reset controller)
+ * This variable is required when client reloads UI. By default every group is set to 0 on UI startup.
+ * Variable is updated when JSON response from controller has param "balanceStatus".
+ */
+
+var groupChargeStatus = [0,0,0,0,0,0,0,0,0,0];
+
 const clientMQTT = mqtt.connect(`mqtt://${config.address.remoteAddress}`); //MQTT server address
 
 clientMQTT.on(`connect`, () => {
@@ -119,6 +128,10 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 				handle: `Controller_1`
 			});
 		} else if (newData.type === "param") {
+			if(newData.name === "balanceStatus"){
+				groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
+				console.log(groupChargeStatus);
+			}
 			io.sockets.emit(`systemState`, { //Send log to client via websocket
 				message: input,
 				handle: `Controller_1`
@@ -127,7 +140,7 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	}
 });
 
-controller_2_input.on(`data`, data => { //Read data from 2nd USB-port, (Connected to debugger)
+controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
 		console.log('Controller 2 request');
@@ -156,6 +169,10 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port, (Connecte
 				handle: `Controller_2`
 			});
 		} else if (newData.type === "param") {
+			if(newData.name === "balanceStatus"){
+				groupChargeStatus[parseInt(newData.value.charAt(0), 10) + 5] = parseInt(newData.value.charAt(1), 10);
+				console.log(groupChargeStatus);
+			}
 			io.sockets.emit(`systemState`, { //Send log to client via websocket
 				message: input,
 				handle: `Controller_2`
@@ -209,7 +226,8 @@ io.on(`connection`, (socket: any) => {
 				controller_2: config.port.controllerPort_2,
 				driverPort: config.port.driverPort,
 				driveDirection: result[0],
-				remoteUpdateInterval: config.interval / 60000
+				remoteUpdateInterval: config.interval / 60000,
+				groupChargeStatus: groupChargeStatus
 			}),
 			handle: `Server`
 		});

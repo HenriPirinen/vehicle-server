@@ -29,6 +29,13 @@ var dataObject = {
         { "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] } //Group 5 - 9
     ]
 };
+/**
+ * @param {integer array} groupChargeStatus
+ * When server starts, all pins are set to zero on controller. (New serial connection will reset controller)
+ * This variable is required when client reloads UI. By default every group is set to 0 on UI startup.
+ * Variable is updated when JSON response from controller has param "balanceStatus".
+ */
+var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 var clientMQTT = mqtt.connect("mqtt://" + config.address.remoteAddress); //MQTT server address
 clientMQTT.on("connect", function () {
     clientMQTT.subscribe("vehicleData");
@@ -105,6 +112,10 @@ controller_1_input.on("data", function (data) {
             });
         }
         else if (newData.type === "param") {
+            if (newData.name === "balanceStatus") {
+                groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
+                console.log(groupChargeStatus);
+            }
             io.sockets.emit("systemState", {
                 message: input,
                 handle: "Controller_1"
@@ -143,6 +154,10 @@ controller_2_input.on("data", function (data) {
             });
         }
         else if (newData.type === "param") {
+            if (newData.name === "balanceStatus") {
+                groupChargeStatus[parseInt(newData.value.charAt(0), 10) + 5] = parseInt(newData.value.charAt(1), 10);
+                console.log(groupChargeStatus);
+            }
             io.sockets.emit("systemState", {
                 message: input,
                 handle: "Controller_2"
@@ -194,7 +209,8 @@ io.on("connection", function (socket) {
                 controller_2: config.port.controllerPort_2,
                 driverPort: config.port.driverPort,
                 driveDirection: result[0],
-                remoteUpdateInterval: config.interval / 60000
+                remoteUpdateInterval: config.interval / 60000,
+                groupChargeStatus: groupChargeStatus
             }),
             handle: "Server"
         });
