@@ -40,7 +40,7 @@ in
                 rm -rf build-nano328/
 		nodepid=$(pidof regni-server)
                 sudo kill -15 $nodepid
-                sudo -u pi node /home/pi/Public/nodeServer/index.js #>> /home/pi/Public/nodeServer/nodelog
+                sudo -u pi node /home/pi/Public/nodeServer/index.js successfull #>> /home/pi/Public/nodeServer/nodelog
 		;;
 	ui)
 		echo "Update UI"
@@ -55,6 +55,7 @@ in
 		sudo -u pi git pull origin master
 		nodepid=$(pidof regni-server)
 		sudo kill -15 pidof $nodepid
+		sudo -u pi node /home/pi/Public/nodeServer/index.js successfull #>> /home/pi/Public/nodeServer/nodelog
 		;;
 	driver)
 		echo "### DRIVER UPDATE ###" #>> /home/pi/Public/nodeServer/log1
@@ -64,7 +65,7 @@ in
                 rm -rf build-nano328/
 		nodepid=$(pidof regni-server)
                 sudo kill -15 $nodepid
-                sudo -u pi node /home/pi/Public/nodeServer/index.js #>> /home/pi/Public/nodeServer/nodelog
+                sudo -u pi node /home/pi/Public/nodeServer/index.js successfull #>> /home/pi/Public/nodeServer/nodelog
 		;;
 	*)
 		echo "Invalid target";;

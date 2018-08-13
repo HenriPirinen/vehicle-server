@@ -8,10 +8,12 @@ var SerialPort = require("serialport");
 var Delimiter = require("parser-delimiter");
 var fetch = require("node-fetch");
 var process = require("process");
-// @ts-ignore
-var config = require("./serverCfg");
 var bluebird = require("bluebird");
 var child_process_1 = require("child_process");
+// @ts-ignore
+var utilities = require("./utilities");
+// @ts-ignore
+var config = require("./serverCfg");
 bluebird.promisifyAll(redis);
 // @ts-ignore
 process.title = 'regni-server';
@@ -91,7 +93,7 @@ controller_1_input.on("data", function (data) {
             }
         });
     }
-    else if (validateJSON(input)) { //Validate message from arduino
+    else if (utilities.validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
         if (newData.type === "data") {
             console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
@@ -133,7 +135,7 @@ controller_2_input.on("data", function (data) {
             }
         });
     }
-    else if (validateJSON(input)) { //Validate message from arduino
+    else if (utilities.validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
         if (newData.type === "data") {
             console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
@@ -199,7 +201,13 @@ driver_1_input.on("data", function (data) {
     }
 });
 io.on("connection", function (socket) {
-    getParam().then(function (result) {
+    if (process.argv[2] !== undefined) { //If server starts with argument i.e after software update.
+        socket.emit("systemState", {
+            message: JSON.stringify({ message: process.argv[2] }),
+            handle: "Server"
+        });
+    }
+    utilities.getParam(clientREDIS).then(function (result) {
         socket.emit("systemParam", {
             message: JSON.stringify({
                 weatherAPI: config.api.weather,
@@ -326,23 +334,4 @@ io.on("connection", function (socket) {
         });
     });
 });
-function validateJSON(string) {
-    try {
-        JSON.parse(string);
-    }
-    catch (e) {
-        return false;
-    }
-    return true;
-}
-var uploadData = function () {
-    clientMQTT.publish("vehicleData", JSON.stringify(dataObject));
-};
-function getParam() {
-    var param = clientREDIS.getAsync("direction").then(function (reply) {
-        return reply;
-    });
-    // @ts-ignore
-    return Promise.all([param]);
-}
-setInterval(uploadData, config.interval);
+setInterval(function () { utilities.uploadData(clientMQTT, dataObject); }, config.interval);

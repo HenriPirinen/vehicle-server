@@ -6,10 +6,12 @@ import * as SerialPort from 'serialport';
 import * as Delimiter from 'parser-delimiter';
 import * as fetch from 'node-fetch';
 import * as process from 'process';
-// @ts-ignore
-import * as config from './serverCfg';
 import * as bluebird from 'bluebird';
 import { exec, execSync } from 'child_process';
+// @ts-ignore
+import * as utilities from './utilities';
+// @ts-ignore
+import * as config from './serverCfg';
 
 bluebird.promisifyAll(redis);
 
@@ -37,7 +39,7 @@ var dataObject = { //Add log as an array with object
  * Variable is updated when JSON response from controller has param "balanceStatus".
  */
 
-var groupChargeStatus = [0,0,0,0,0,0,0,0,0,0];
+var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 const clientMQTT = mqtt.connect(`mqtt://${config.address.remoteAddress}`); //MQTT server address
 
@@ -108,7 +110,7 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 				return console.log(`Error on write: ${err.message}`);
 			}
 		});
-	} else if (validateJSON(input)) { //Validate message from arduino
+	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
 			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
@@ -128,7 +130,7 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 				handle: `Controller_1`
 			});
 		} else if (newData.type === "param") {
-			if(newData.name === "balanceStatus"){
+			if (newData.name === "balanceStatus") {
 				groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
 				console.log(groupChargeStatus);
 			}
@@ -149,7 +151,7 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 				return console.log(`Error on write: ${err.message}`);
 			}
 		});
-	} else if (validateJSON(input)) { //Validate message from arduino
+	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
 			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
@@ -169,7 +171,7 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 				handle: `Controller_2`
 			});
 		} else if (newData.type === "param") {
-			if(newData.name === "balanceStatus"){
+			if (newData.name === "balanceStatus") {
 				groupChargeStatus[parseInt(newData.value.charAt(0), 10) + 5] = parseInt(newData.value.charAt(1), 10);
 				console.log(groupChargeStatus);
 			}
@@ -216,7 +218,13 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 });
 
 io.on(`connection`, (socket: any) => {
-	getParam().then(function (result) {
+	if(process.argv[2] !== undefined){ //If server starts with argument i.e after software update.
+		socket.emit(`systemState`,{
+			message: JSON.stringify({message: process.argv[2]}),
+			handle: `Server`
+		})
+	}
+	utilities.getParam(clientREDIS).then(function (result) {
 		socket.emit(`systemParam`, {		//Send notification to new client
 			message: JSON.stringify({
 				weatherAPI: config.api.weather,
@@ -227,7 +235,7 @@ io.on(`connection`, (socket: any) => {
 				driverPort: config.port.driverPort,
 				driveDirection: result[0],
 				remoteUpdateInterval: config.interval / 60000,
-				groupChargeStatus: groupChargeStatus
+				groupChargeStatus: groupChargeStatus,
 			}),
 			handle: `Server`
 		});
@@ -348,26 +356,4 @@ io.on(`connection`, (socket: any) => {
 	})
 });
 
-function validateJSON(string: string) { //Validate JSON string
-	try {
-		JSON.parse(string);
-	} catch (e) {
-		return false;
-	}
-	return true;
-}
-
-var uploadData = () => {
-	clientMQTT.publish(`vehicleData`, JSON.stringify(dataObject));
-}
-
-function getParam() {
-
-	var param = clientREDIS.getAsync(`direction`).then(function (reply) {
-		return reply;
-	})
-	// @ts-ignore
-	return Promise.all([param]);
-}
-
-setInterval(uploadData, config.interval);
+setInterval(function(){utilities.uploadData(clientMQTT, dataObject)}, config.interval);
