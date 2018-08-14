@@ -37,6 +37,7 @@ var dataObject = {
  * This variable is required when client reloads UI. By default every group is set to 0 on UI startup.
  * Variable is updated when JSON response from controller has param "balanceStatus".
  */
+//Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 var clientMQTT = mqtt.connect("mqtt://" + config.address.remoteAddress); //MQTT server address
 clientMQTT.on("connect", function () {
@@ -50,7 +51,9 @@ var clientREDIS = redis.createClient(); //Creates new redis client, redis will q
 clientREDIS.on("connect", function () {
     console.log("Redis connected");
 });
-clientREDIS.set("direction", "0");
+clientREDIS.set("driverState", "0000"); //Driver, Reverse, Cruiser, Waterpump
+clientREDIS.set("groupChargeStatus", "0,0,0,0,0,0,0,0,0,0"); //Group 1, Group 2...
+clientREDIS.set("charging", "true");
 var app = express();
 var server = app.listen(4000, function () {
     console.log("Listening port 4000 @ localhost");
@@ -75,14 +78,6 @@ var controller_2_input = controller_2.pipe(new Delimiter({
 var driver_1_input = driver_1.pipe(new Delimiter({
     delimiter: "\n"
 }));
-setTimeout(function () {
-    driver_1.write('99', function (err) {
-        if (err) {
-            return console.log("Error on write: " + err.message);
-        }
-        console.log('Get driver settings');
-    });
-}, 2000);
 controller_1_input.on("data", function (data) {
     var input = data.toString();
     if (input.charAt(0) === '$') {
@@ -114,14 +109,15 @@ controller_1_input.on("data", function (data) {
             });
         }
         else if (newData.type === "param") {
-            if (newData.name === "balanceStatus") {
-                groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
-                console.log(groupChargeStatus);
-            }
             io.sockets.emit("systemState", {
                 message: input,
                 handle: "Controller_1"
             });
+            if (newData.name === "balanceStatus") {
+                var groupChargeStatus_1;
+                groupChargeStatus_1[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
+                console.log(groupChargeStatus_1);
+            }
         }
     }
 });
@@ -174,20 +170,22 @@ driver_1_input.on("data", function (data) {
         if (_params.type === "log") {
             io.sockets.emit("systemLog", {
                 message: input,
-                handle: "driver"
+                handle: "Driver"
             });
         }
         else if (_params.type === "param") {
-            input = JSON.parse(input);
-            console.log(_params.name + " : " + _params.value);
             clientREDIS.set(_params.name, _params.value);
+            io.sockets.emit("systemState", {
+                message: input,
+                handle: "Driver"
+            });
         }
     }
     else { //Get desired gear setting from redis and write it to driver
         console.log("Request from the driver: " + input);
         switch (input.substring(0, 10)) { //Ignore \n at the end of input
             case "$getParams":
-                clientREDIS.get("direction", function (err, reply) {
+                clientREDIS.get("driverState", function (err, reply) {
                     driver_1.write(reply, function (err) {
                         if (err) {
                             return console.log("Error on write: " + err.message);
@@ -207,7 +205,7 @@ io.on("connection", function (socket) {
             handle: "Server"
         });
     }
-    utilities.getParam(clientREDIS).then(function (result) {
+    utilities.getParam(clientREDIS, "driverState").then(function (result) {
         socket.emit("systemParam", {
             message: JSON.stringify({
                 weatherAPI: config.api.weather,
@@ -216,7 +214,7 @@ io.on("connection", function (socket) {
                 controller_1: config.port.controllerPort_1,
                 controller_2: config.port.controllerPort_2,
                 driverPort: config.port.driverPort,
-                driveDirection: result[0],
+                driverState: result[0],
                 remoteUpdateInterval: config.interval / 60000,
                 groupChargeStatus: groupChargeStatus
             }),
@@ -279,42 +277,10 @@ io.on("connection", function (socket) {
                 });
                 break;
             case "driver":
-                var driverCommand = "0";
-                var instantAction = true;
-                //Add command type to message
-                switch (data.command.toString()) {
-                    case "neutral":
-                        instantAction = false;
-                        clientREDIS.set("direction", "0");
-                        break;
-                    case "reverse":
-                        instantAction = false;
-                        clientREDIS.set("direction", "1");
-                        break;
-                    case "drive":
-                        instantAction = false;
-                        clientREDIS.set("direction", "2");
-                        break;
-                    case "getSettings":
-                        instantAction = true;
-                        driverCommand = "99";
-                        break;
-                    default:
-                        console.log("Invalid command: " + data.command.toString());
-                        instantAction = false;
-                }
-                console.log("Command to driver: " + data.command.toString() + " | instantAction = " + instantAction);
-                if (instantAction) {
-                    driver_1.write(driverCommand, function (err) {
-                        if (err) {
-                            return console.log("Error on write: " + err.message);
-                        }
-                    });
-                }
+                clientREDIS.set("driverState", data.command); //Driver, Reverse, Cruiser, Waterpump
                 break;
-            default:
-                console.log("Invalid target: " + data.target);
         }
+        ;
     });
     socket.on('reconfigure', function (data) {
         child_process_1.exec("sudo bash /home/pi/Public/nodeServer/restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000, function (err, stdout, stderr) {

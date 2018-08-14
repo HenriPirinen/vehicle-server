@@ -17,7 +17,7 @@ bluebird.promisifyAll(redis);
 
 // @ts-ignore
 process.title = 'regni-server';
-var dataObject = { //Add log as an array with object
+var dataObject = {
 	'group': [
 		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
 		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -39,6 +39,7 @@ var dataObject = { //Add log as an array with object
  * Variable is updated when JSON response from controller has param "balanceStatus".
  */
 
+//Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 const clientMQTT = mqtt.connect(`mqtt://${config.address.remoteAddress}`); //MQTT server address
@@ -58,7 +59,9 @@ clientREDIS.on(`connect`, () => {
 	console.log(`Redis connected`);
 });
 
-clientREDIS.set(`direction`, `0`);
+clientREDIS.set(`driverState`, `0000`); //Driver, Reverse, Cruiser, Waterpump
+clientREDIS.set(`groupChargeStatus`, `0,0,0,0,0,0,0,0,0,0`); //Group 1, Group 2...
+clientREDIS.set(`charging`, `true`);
 
 const app = express();
 const server = app.listen(4000, () => { //Start server
@@ -92,15 +95,6 @@ const driver_1_input = driver_1.pipe(new Delimiter({
 	delimiter: `\n`
 }));
 
-setTimeout(function () {
-	driver_1.write('99', function (err) {
-		if (err) {
-			return console.log(`Error on write: ${err.message}`);
-		}
-		console.log('Get driver settings');
-	});
-}, 2000);
-
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
@@ -130,14 +124,15 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 				handle: `Controller_1`
 			});
 		} else if (newData.type === "param") {
-			if (newData.name === "balanceStatus") {
-				groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
-				console.log(groupChargeStatus);
-			}
 			io.sockets.emit(`systemState`, { //Send log to client via websocket
 				message: input,
 				handle: `Controller_1`
 			});
+			if (newData.name === "balanceStatus") {
+				let groupChargeStatus
+				groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
+				console.log(groupChargeStatus);
+			}
 		}
 	}
 });
@@ -187,23 +182,23 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) != `$`) { //Send log message to the client
 		let _params = JSON.parse(input);
-
 		if (_params.type === `log`) {
 			io.sockets.emit(`systemLog`, {
 				message: input,
-				handle: `driver`
+				handle: `Driver`
 			});
 		} else if (_params.type === `param`) {
-			input = JSON.parse(input);
-			console.log(`${_params.name} : ${_params.value}`);
 			clientREDIS.set(_params.name, _params.value);
+			io.sockets.emit(`systemState`, {
+				message: input,
+				handle: `Driver`
+			});
 		}
-
 	} else { //Get desired gear setting from redis and write it to driver
 		console.log("Request from the driver: " + input);
 		switch (input.substring(0, 10)) { //Ignore \n at the end of input
 			case `$getParams`:
-				clientREDIS.get(`direction`, (err, reply) => {
+				clientREDIS.get(`driverState`, (err, reply) => {
 					driver_1.write(reply, function (err) {
 						if (err) {
 							return console.log(`Error on write: ${err.message}`);
@@ -218,13 +213,13 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 });
 
 io.on(`connection`, (socket: any) => {
-	if(process.argv[2] !== undefined){ //If server starts with argument i.e after software update.
-		socket.emit(`systemState`,{
-			message: JSON.stringify({message: process.argv[2]}),
+	if (process.argv[2] !== undefined) { //If server starts with argument i.e after software update.
+		socket.emit(`systemState`, {
+			message: JSON.stringify({ message: process.argv[2] }),
 			handle: `Server`
 		})
 	}
-	utilities.getParam(clientREDIS).then(function (result) {
+	utilities.getParam(clientREDIS, `driverState`).then(function (result) {
 		socket.emit(`systemParam`, {		//Send notification to new client
 			message: JSON.stringify({
 				weatherAPI: config.api.weather,
@@ -233,7 +228,7 @@ io.on(`connection`, (socket: any) => {
 				controller_1: config.port.controllerPort_1,
 				controller_2: config.port.controllerPort_2,
 				driverPort: config.port.driverPort,
-				driveDirection: result[0],
+				driverState: result[0],
 				remoteUpdateInterval: config.interval / 60000,
 				groupChargeStatus: groupChargeStatus,
 			}),
@@ -298,62 +293,29 @@ io.on(`connection`, (socket: any) => {
 
 				break;
 			case "driver":
-				let driverCommand: string = `0`;
-				let instantAction: boolean = true;
-				//Add command type to message
-				switch (data.command.toString()) {
-					case `neutral`:
-						instantAction = false;
-						clientREDIS.set(`direction`, `0`);
-						break;
-					case `reverse`:
-						instantAction = false;
-						clientREDIS.set(`direction`, `1`);
-						break;
-					case `drive`:
-						instantAction = false;
-						clientREDIS.set(`direction`, `2`);
-						break;
-					case `getSettings`:
-						instantAction = true;
-						driverCommand = `99`;
-						break;
-					default:
-						console.log(`Invalid command: ` + data.command.toString());
-						instantAction = false;
-				}
-				console.log(`Command to driver: ${data.command.toString()} | instantAction = ${instantAction}`);
-				if (instantAction) {
-					driver_1.write(driverCommand, function (err) {
-						if (err) {
-							return console.log(`Error on write: ${err.message}`);
-						}
-					});
-				}
+				clientREDIS.set(`driverState`, data.command); //Driver, Reverse, Cruiser, Waterpump
 				break;
-			default:
-				console.log("Invalid target: " + data.target);
-		}
+		};
 	});
 
-	socket.on('reconfigure', (data) => {
-		exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
-			if (err) {
-				console.log(stderr);
-				return;
-			}
+		socket.on('reconfigure', (data) => {
+			exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
+				if (err) {
+					console.log(stderr);
+					return;
+				}
+			})
 		})
-	})
 
-	socket.on(`update`, (command) => {
-		console.log(command.target);
-		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function (err, stdout, stderr) {
-			if (err) {
-				console.log(stderr);
-				return;
-			}
+		socket.on(`update`, (command) => {
+			console.log(command.target);
+			exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function (err, stdout, stderr) {
+				if (err) {
+					console.log(stderr);
+					return;
+				}
+			})
 		})
-	})
-});
+	});
 
-setInterval(function(){utilities.uploadData(clientMQTT, dataObject)}, config.interval);
+	setInterval(function () { utilities.uploadData(clientMQTT, dataObject) }, config.interval);

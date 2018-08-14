@@ -11,9 +11,9 @@ export function uploadData(clientMQTT, dataObject) {
 	clientMQTT.publish(`vehicleData`, JSON.stringify(dataObject));
 }
 
-export function getParam(clientREDIS) {
+export function getParam(clientREDIS, item) {
     
-    var param = clientREDIS.getAsync(`direction`).then(function (reply) {
+    var param = clientREDIS.getAsync(item).then(function (reply) {
         return reply;
     })
     // @ts-ignore
