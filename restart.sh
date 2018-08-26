@@ -22,7 +22,12 @@ module.exports = {
     address: {
         remoteAddress: '$address'
     },
-    interval: $interval
+    interval: $interval,
+    mqttOptions:{
+	clientId: "local"
+	username: "local"
+	password: "passw"
+    }
 }
 EOL
 fi

@@ -9,6 +9,7 @@ export function validateJSON(string: string) { //Validate JSON string
 
 export function uploadData(clientMQTT, dataObject) {
 	clientMQTT.publish(`vehicleData`, JSON.stringify(dataObject));
+	console.log("Upload");
 }
 
 export function getParam(clientREDIS, item) {

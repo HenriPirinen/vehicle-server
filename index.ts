@@ -17,6 +17,7 @@ bluebird.promisifyAll(redis);
 
 // @ts-ignore
 process.title = 'regni-server';
+
 var dataObject = {
 	'group': [
 		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
@@ -42,7 +43,7 @@ var dataObject = {
 //Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-const clientMQTT = mqtt.connect(`mqtt://${config.address.remoteAddress}`); //MQTT server address
+const clientMQTT = mqtt.connect(`mqtt://${config.address.remoteAddress}`, config.mqttOptions); //MQTT server address and options
 
 clientMQTT.on(`connect`, () => {
 	clientMQTT.subscribe(`vehicleData`);
@@ -196,7 +197,7 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 		}
 	} else { //Get desired gear setting from redis and write it to driver
 		console.log("Request from the driver: " + input);
-		switch (input.substring(0, 10)) { //Ignore \n at the end of input
+		switch (input.substring(0, 10)) { //Ignore \n at the end of input, msg length is 11 characters
 			case `$getParams`:
 				clientREDIS.get(`driverState`, (err, reply) => {
 					driver_1.write(reply, function (err) {
@@ -205,6 +206,12 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 						}
 					});
 				});
+				break;
+			case `$charging `:
+				console.log("Set charging to 1");
+				break;
+			case `$!charging`:
+				console.log("Set charging to 0");
 				break;
 			default:
 				console.log(`Invalid request from the driver: ${input}`);
@@ -293,6 +300,7 @@ io.on(`connection`, (socket: any) => {
 
 				break;
 			case "driver":
+				console.log(data.command);
 				clientREDIS.set(`driverState`, data.command); //Driver, Reverse, Cruiser, Waterpump
 				break;
 		};
@@ -318,4 +326,6 @@ io.on(`connection`, (socket: any) => {
 		})
 	});
 
-	setInterval(function () { utilities.uploadData(clientMQTT, dataObject) }, config.interval);
+	setInterval(function () {
+		utilities.uploadData(clientMQTT, dataObject); 
+	}, config.interval);

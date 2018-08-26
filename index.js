@@ -39,7 +39,7 @@ var dataObject = {
  */
 //Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-var clientMQTT = mqtt.connect("mqtt://" + config.address.remoteAddress); //MQTT server address
+var clientMQTT = mqtt.connect("mqtt://" + config.address.remoteAddress, config.mqttOptions); //MQTT server address and options
 clientMQTT.on("connect", function () {
     clientMQTT.subscribe("vehicleData");
     clientMQTT.subscribe("vehicleExternalCommand");
@@ -183,7 +183,7 @@ driver_1_input.on("data", function (data) {
     }
     else { //Get desired gear setting from redis and write it to driver
         console.log("Request from the driver: " + input);
-        switch (input.substring(0, 10)) { //Ignore \n at the end of input
+        switch (input.substring(0, 10)) { //Ignore \n at the end of input, msg length is 11 characters
             case "$getParams":
                 clientREDIS.get("driverState", function (err, reply) {
                     driver_1.write(reply, function (err) {
@@ -192,6 +192,12 @@ driver_1_input.on("data", function (data) {
                         }
                     });
                 });
+                break;
+            case "$charging ":
+                console.log("Set charging to 1");
+                break;
+            case "$!charging":
+                console.log("Set charging to 0");
                 break;
             default:
                 console.log("Invalid request from the driver: " + input);
@@ -277,6 +283,7 @@ io.on("connection", function (socket) {
                 });
                 break;
             case "driver":
+                console.log(data.command);
                 clientREDIS.set("driverState", data.command); //Driver, Reverse, Cruiser, Waterpump
                 break;
         }
@@ -300,4 +307,6 @@ io.on("connection", function (socket) {
         });
     });
 });
-setInterval(function () { utilities.uploadData(clientMQTT, dataObject); }, config.interval);
+setInterval(function () {
+    utilities.uploadData(clientMQTT, dataObject);
+}, config.interval);
