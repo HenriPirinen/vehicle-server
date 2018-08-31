@@ -99,12 +99,20 @@ const driver_1_input = driver_1.pipe(new Delimiter({
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
-		console.log('Controller 1 request');
-		controller_1.write('0', function (err) {
-			if (err) {
-				return console.log(`Error on write: ${err.message}`);
-			}
-		});
+		console.log('Ctrl1 ' + input.substring(0,14));
+		if (input.substring(0,5) === '$init') {
+			controller_1.write('0', function (err) {
+				if (err) {
+					return console.log(`Error on write: ${err.message}`);
+				}
+			});
+		} else if (input.substring(0,14) === '$!serialCharge'){
+			driver_1.write('SC0', function (err) {
+				if (err) {
+					return console.log(`Error on write: ${err.message}`);
+				}
+			});
+		}
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
@@ -141,12 +149,20 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
-		console.log('Controller 2 request');
-		controller_2.write('5', function (err) {
-			if (err) {
-				return console.log(`Error on write: ${err.message}`);
-			}
-		});
+		console.log('Ctrl2 ' + input.substring(0,14));
+		if (input.substring(0,5) === '$init') {
+			controller_2.write('5', function (err) {
+				if (err) {
+					return console.log(`Error on write: ${err.message}`);
+				}
+			});
+		} else if (input.substring(0,14) === '$!serialCharge'){
+			driver_1.write('SC0', function (err) {
+				if (err) {
+					return console.log(`Error on write: ${err.message}`);
+				}
+			});
+		}
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
@@ -197,7 +213,7 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 		}
 	} else { //Get desired gear setting from redis and write it to driver
 		console.log("Request from the driver: " + input);
-		switch (input.substring(0, 10)) { //Ignore \n at the end of input, msg length is 11 characters
+		switch (input.substring(0, input.length - 1)) { //Ignore \n at the end of input, msg length is 11 characters
 			case `$getParams`:
 				clientREDIS.get(`driverState`, (err, reply) => {
 					driver_1.write(reply, function (err) {
@@ -208,10 +224,43 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$charging `:
-				console.log("Set charging to 1");
+				console.log("Vehicle is charging...");
+				controller_1.write('C1', function (err) {
+					if (err) {
+						return console.log(`Error on write: ${err.message}`);
+					}
+				});
+				controller_2.write('C1', function (err) {
+					if (err) {
+						return console.log(`Error on write: ${err.message}`);
+					}
+				});
 				break;
 			case `$!charging`:
-				console.log("Set charging to 0");
+				console.log("Charging completed");
+				controller_1.write('C0', function (err) {
+					if (err) {
+						return console.log(`Error on write: ${err.message}`);
+					}
+				});
+				controller_2.write('C0', function (err) {
+					if (err) {
+						return console.log(`Error on write: ${err.message}`);
+					}
+				});
+				break;
+			case `$B1`:
+				console.log(`Start balance`);
+				controller_1.write('$B1', function (err) {
+					if (err) {
+						return console.log(`Error on write: ${err.message}`);
+					}
+				});
+				controller_2.write('$B1', function (err) {
+					if (err) {
+						return console.log(`Error on write: ${err.message}`);
+					}
+				});
 				break;
 			default:
 				console.log(`Invalid request from the driver: ${input}`);
@@ -282,12 +331,12 @@ io.on(`connection`, (socket: any) => {
 							handle: `Server`
 						});
 					},
-					(result) => {
-						socket.emit(`inverterResponse`, {
-							message: result.toString(),
-							handle: `Server`
-						});
-					}
+						(result) => {
+							socket.emit(`inverterResponse`, {
+								message: result.toString(),
+								handle: `Server`
+							});
+						}
 					)
 				break;
 			case "server":
@@ -306,26 +355,26 @@ io.on(`connection`, (socket: any) => {
 		};
 	});
 
-		socket.on('reconfigure', (data) => {
-			exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
-				if (err) {
-					console.log(stderr);
-					return;
-				}
-			})
+	socket.on('reconfigure', (data) => {
+		exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000}`, function (err, stdout, stderr) {
+			if (err) {
+				console.log(stderr);
+				return;
+			}
 		})
+	})
 
-		socket.on(`update`, (command) => {
-			console.log(command.target);
-			exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function (err, stdout, stderr) {
-				if (err) {
-					console.log(stderr);
-					return;
-				}
-			})
+	socket.on(`update`, (command) => {
+		console.log(command.target);
+		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function (err, stdout, stderr) {
+			if (err) {
+				console.log(stderr);
+				return;
+			}
 		})
-	});
+	})
+});
 
-	setInterval(function () {
-		utilities.uploadData(clientMQTT, dataObject); 
-	}, config.interval);
+setInterval(function () {
+	utilities.uploadData(clientMQTT, dataObject);
+}, config.interval);

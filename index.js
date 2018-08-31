@@ -81,12 +81,21 @@ var driver_1_input = driver_1.pipe(new Delimiter({
 controller_1_input.on("data", function (data) {
     var input = data.toString();
     if (input.charAt(0) === '$') {
-        console.log('Controller 1 request');
-        controller_1.write('0', function (err) {
-            if (err) {
-                return console.log("Error on write: " + err.message);
-            }
-        });
+        console.log('Ctrl1 ' + input.substring(0, 14));
+        if (input.substring(0, 5) === '$init') {
+            controller_1.write('0', function (err) {
+                if (err) {
+                    return console.log("Error on write: " + err.message);
+                }
+            });
+        }
+        else if (input.substring(0, 14) === '$!serialCharge') {
+            driver_1.write('SC0', function (err) {
+                if (err) {
+                    return console.log("Error on write: " + err.message);
+                }
+            });
+        }
     }
     else if (utilities.validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
@@ -124,12 +133,21 @@ controller_1_input.on("data", function (data) {
 controller_2_input.on("data", function (data) {
     var input = data.toString();
     if (input.charAt(0) === '$') {
-        console.log('Controller 2 request');
-        controller_2.write('5', function (err) {
-            if (err) {
-                return console.log("Error on write: " + err.message);
-            }
-        });
+        console.log('Ctrl2 ' + input.substring(0, 14));
+        if (input.substring(0, 5) === '$init') {
+            controller_2.write('5', function (err) {
+                if (err) {
+                    return console.log("Error on write: " + err.message);
+                }
+            });
+        }
+        else if (input.substring(0, 14) === '$!serialCharge') {
+            driver_1.write('SC0', function (err) {
+                if (err) {
+                    return console.log("Error on write: " + err.message);
+                }
+            });
+        }
     }
     else if (utilities.validateJSON(input)) { //Validate message from arduino
         var newData = JSON.parse(input);
@@ -183,7 +201,7 @@ driver_1_input.on("data", function (data) {
     }
     else { //Get desired gear setting from redis and write it to driver
         console.log("Request from the driver: " + input);
-        switch (input.substring(0, 10)) { //Ignore \n at the end of input, msg length is 11 characters
+        switch (input.substring(0, input.length - 1)) { //Ignore \n at the end of input, msg length is 11 characters
             case "$getParams":
                 clientREDIS.get("driverState", function (err, reply) {
                     driver_1.write(reply, function (err) {
@@ -194,10 +212,43 @@ driver_1_input.on("data", function (data) {
                 });
                 break;
             case "$charging ":
-                console.log("Set charging to 1");
+                console.log("Vehicle is charging...");
+                controller_1.write('C1', function (err) {
+                    if (err) {
+                        return console.log("Error on write: " + err.message);
+                    }
+                });
+                controller_2.write('C1', function (err) {
+                    if (err) {
+                        return console.log("Error on write: " + err.message);
+                    }
+                });
                 break;
             case "$!charging":
-                console.log("Set charging to 0");
+                console.log("Charging completed");
+                controller_1.write('C0', function (err) {
+                    if (err) {
+                        return console.log("Error on write: " + err.message);
+                    }
+                });
+                controller_2.write('C0', function (err) {
+                    if (err) {
+                        return console.log("Error on write: " + err.message);
+                    }
+                });
+                break;
+            case "$B1":
+                console.log("Start balance");
+                controller_1.write('$B1', function (err) {
+                    if (err) {
+                        return console.log("Error on write: " + err.message);
+                    }
+                });
+                controller_2.write('$B1', function (err) {
+                    if (err) {
+                        return console.log("Error on write: " + err.message);
+                    }
+                });
                 break;
             default:
                 console.log("Invalid request from the driver: " + input);
