@@ -17,16 +17,28 @@ module.exports = {
     port: {
         controllerPort_1: "$controller1",
         controllerPort_2: "$controller2",
-        driverPort: "$driver"
+        driverPort: "$driver",
+	thermo: "/dev/thermo.1"
     },
     address: {
         remoteAddress: '$address'
     },
     interval: $interval,
     mqttOptions:{
-	clientId: "local"
-	username: "local"
-	password: "passw"
+	port: 23664,
+        host: '$address',
+        clientId: 'mqttjs_' + Math.random().toString(16).substr(2, 8),
+        username: 'localServer',
+        password: 'b7utgv94',
+        keepalive: 60,
+        reconnectPeriod: 1000,
+        protocolId: 'MQTT',
+        protocolVersion: 4,
+        clean: true,
+    },
+    limits:{
+        thermoMax: 30,
+        serialMax: 370 //At this point, change serial charge to balance. I.e. 370 = 3.70V
     }
 }
 EOL

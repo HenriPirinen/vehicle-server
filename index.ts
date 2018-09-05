@@ -20,16 +20,16 @@ process.title = 'regni-server';
 
 var dataObject = {
 	'group': [
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] }, //Group 0 - 4
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [1, 1, 1, 1, 1, 1, 1, 1], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] } //Group 5 - 9
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] }, //Group 0 - 4
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
+		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] } //Group 5 - 9
 	]
 };
 
@@ -43,7 +43,7 @@ var dataObject = {
 //Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-const clientMQTT = mqtt.connect(`mqtt://${config.address.remoteAddress}`, config.mqttOptions); //MQTT server address and options
+var clientMQTT = mqtt.connect(config.address.remoteAddress, config.mqttOptions); //MQTT server address and options
 
 clientMQTT.on(`connect`, () => {
 	clientMQTT.subscribe(`vehicleData`);
@@ -52,7 +52,9 @@ clientMQTT.on(`connect`, () => {
 
 
 clientMQTT.on(`message`, (topic, message) => {
-	if (topic !== `vehicleData`) { } //console.log(message.toString());
+	if(topic == `vehicleExternalCommand`){
+		console.log(message.toString());
+	}
 });
 
 const clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
@@ -60,14 +62,13 @@ clientREDIS.on(`connect`, () => {
 	console.log(`Redis connected`);
 });
 
-clientREDIS.set(`driverState`, `0000`); //Driver, Reverse, Cruiser, Waterpump
+clientREDIS.set(`driverState`, `0000`); //Driver, Reverse, Cruiser, Heating
 clientREDIS.set(`groupChargeStatus`, `0,0,0,0,0,0,0,0,0,0`); //Group 1, Group 2...
 clientREDIS.set(`charging`, `true`);
 
 const app = express();
 const server = app.listen(4000, () => { //Start server
-	console.log(`Listening port 4000 @ localhost`)
-	console.log(`MQTT is subscribed to "vehicleData" & "vehicleExternalCommand"`);
+	console.log(`Listening port 4000`)
 });
 
 const io = socket(server);
@@ -84,6 +85,10 @@ const driver_1 = new SerialPort(config.port.driverPort, {
 	baudRate: 9600
 });
 
+const thermo = new SerialPort(config.port.thermo, {
+	baudRate: 9600
+});
+
 const controller_1_input = controller_1.pipe(new Delimiter({ //Line change on USB == new dataset
 	delimiter: `\n`
 }));
@@ -96,10 +101,13 @@ const driver_1_input = driver_1.pipe(new Delimiter({
 	delimiter: `\n`
 }));
 
+const thermo_input = thermo.pipe(new Delimiter({
+	delimiter: `\n`
+}))
+
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
-		console.log('Ctrl1 ' + input.substring(0,14));
 		if (input.substring(0,5) === '$init') {
 			controller_1.write('0', function (err) {
 				if (err) {
@@ -116,11 +124,11 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
-			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+			//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
 				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-				console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+				//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 			}
 
 			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
@@ -149,7 +157,6 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
-		console.log('Ctrl2 ' + input.substring(0,14));
 		if (input.substring(0,5) === '$init') {
 			controller_2.write('5', function (err) {
 				if (err) {
@@ -166,11 +173,11 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
-			console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
+			//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
 				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-				console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
+				//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 			}
 
 			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
@@ -268,6 +275,24 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	}
 });
 
+thermo_input.on(`data`, (data:any) => {
+	let _input = data.toString();
+	if (_input.charAt(0) !== '$') {
+		io.sockets.emit(`dataset`, { //Send dataset to client via websocket
+			message: _input,
+			handle: `Thermo`
+		});
+	} else {
+		if (_input.substring(0,5) === '$init') {
+			thermo.write((config.limits.thermoMax).toString(), function (err) {
+				if (err) {
+					return console.log(`Error on write: ${err.message}`);
+				}
+			});
+		}
+	}
+});
+
 io.on(`connection`, (socket: any) => {
 	if (process.argv[2] !== undefined) { //If server starts with argument i.e after software update.
 		socket.emit(`systemState`, {
@@ -287,6 +312,9 @@ io.on(`connection`, (socket: any) => {
 				driverState: result[0],
 				remoteUpdateInterval: config.interval / 60000,
 				groupChargeStatus: groupChargeStatus,
+				thermoDevice: config.port.thermo,
+				temperatureLimit: config.limits.thermoMax,
+				voltageLimit: config.limits.serialMax / 100
 			}),
 			handle: `Server`
 		});
@@ -350,6 +378,9 @@ io.on(`connection`, (socket: any) => {
 				break;
 			case "driver":
 				console.log(data.command);
+
+				//Logic from UI to server
+
 				clientREDIS.set(`driverState`, data.command); //Driver, Reverse, Cruiser, Waterpump
 				break;
 		};
