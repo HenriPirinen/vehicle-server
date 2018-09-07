@@ -6,6 +6,7 @@ controller1=$4
 controller2=$5
 driver=$6
 interval=$7
+serialMax=$8
 if [[ -n $weatherKey  ]];
 then
 cat >/home/pi/Public/nodeServer/serverCfg.js <<EOL
@@ -38,7 +39,7 @@ module.exports = {
     },
     limits:{
         thermoMax: 30,
-        serialMax: 370 //At this point, change serial charge to balance. I.e. 370 = 3.70V
+        serialMax: "$serialMax" //At this point, change serial charge to balance. I.e. 370 = 3.70V
     }
 }
 EOL

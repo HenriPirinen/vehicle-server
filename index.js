@@ -53,7 +53,7 @@ var clientREDIS = redis.createClient(); //Creates new redis client, redis will q
 clientREDIS.on("connect", function () {
     console.log("Redis connected");
 });
-clientREDIS.set("driverState", "0000"); //Driver, Reverse, Cruiser, Heating
+clientREDIS.set("driverState", "0000"); //Driver, Reverse, Cruiser
 clientREDIS.set("groupChargeStatus", "0,0,0,0,0,0,0,0,0,0"); //Group 1, Group 2...
 clientREDIS.set("charging", "true");
 var app = express();
@@ -88,8 +88,9 @@ var thermo_input = thermo.pipe(new Delimiter({
 controller_1_input.on("data", function (data) {
     var input = data.toString();
     if (input.charAt(0) === '$') {
+        console.log(input);
         if (input.substring(0, 5) === '$init') {
-            controller_1.write('0', function (err) {
+            controller_1.write("0," + config.limits.serialMax, function (err) {
                 if (err) {
                     return console.log("Error on write: " + err.message);
                 }
@@ -139,8 +140,9 @@ controller_1_input.on("data", function (data) {
 controller_2_input.on("data", function (data) {
     var input = data.toString();
     if (input.charAt(0) === '$') {
+        console.log(input);
         if (input.substring(0, 5) === '$init') {
-            controller_2.write('5', function (err) {
+            controller_2.write("5," + config.limits.serialMax, function (err) {
                 if (err) {
                     return console.log("Error on write: " + err.message);
                 }
@@ -205,7 +207,7 @@ driver_1_input.on("data", function (data) {
         }
     }
     else { //Get desired gear setting from redis and write it to driver
-        console.log("Request from the driver: " + input);
+        console.log("Driver: " + input);
         switch (input.substring(0, input.length - 1)) { //Ignore \n at the end of input, msg length is 11 characters
             case "$getParams":
                 clientREDIS.get("driverState", function (err, reply) {
@@ -214,6 +216,12 @@ driver_1_input.on("data", function (data) {
                             return console.log("Error on write: " + err.message);
                         }
                     });
+                    var _newState = [];
+                    _newState[0] = reply.charAt(0);
+                    _newState[1] = reply.charAt(1);
+                    _newState[2] = '0';
+                    _newState[3] = reply.charAt(3);
+                    clientREDIS.set("driverState", _newState.join(''));
                 });
                 break;
             case "$charging ":
@@ -299,7 +307,7 @@ io.on("connection", function (socket) {
                 groupChargeStatus: groupChargeStatus,
                 thermoDevice: config.port.thermo,
                 temperatureLimit: config.limits.thermoMax,
-                voltageLimit: config.limits.serialMax / 100
+                voltageLimit: config.limits.serialMax
             }),
             handle: "Server"
         });
@@ -368,7 +376,7 @@ io.on("connection", function (socket) {
         ;
     });
     socket.on('reconfigure', function (data) {
-        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000, function (err, stdout, stderr) {
+        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000 + " " + data.voltageLimit + " " + data.temperatureLimit + "  " + data.thermoDevice, function (err, stdout, stderr) {
             if (err) {
                 console.log(stderr);
                 return;
