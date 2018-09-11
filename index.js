@@ -39,16 +39,6 @@ var dataObject = {
  */
 //Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-var clientMQTT = mqtt.connect(config.address.remoteAddress, config.mqttOptions); //MQTT server address and options
-clientMQTT.on("connect", function () {
-    clientMQTT.subscribe("vehicleData");
-    clientMQTT.subscribe("vehicleExternalCommand");
-});
-clientMQTT.on("message", function (topic, message) {
-    if (topic == "vehicleExternalCommand") {
-        console.log(message.toString());
-    }
-});
 var clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
 clientREDIS.on("connect", function () {
     console.log("Redis connected");
@@ -85,6 +75,21 @@ var driver_1_input = driver_1.pipe(new Delimiter({
 var thermo_input = thermo.pipe(new Delimiter({
     delimiter: "\n"
 }));
+var clientMQTT = mqtt.connect(config.address.remoteAddress, config.mqttOptions); //MQTT server address and options
+clientMQTT.on("connect", function () {
+    clientMQTT.subscribe("vehicleData");
+    clientMQTT.subscribe("vehicleExternalCommand");
+});
+clientMQTT.on("message", function (topic, message) {
+    if (topic == "vehicleExternalCommand") {
+        var _command = message.toString();
+        driver_1.write(_command, function (err) {
+            if (err) {
+                return console.log("Error on write: " + err.message);
+            }
+        });
+    }
+});
 controller_1_input.on("data", function (data) {
     var input = data.toString();
     if (input.charAt(0) === '$') {
@@ -125,15 +130,14 @@ controller_1_input.on("data", function (data) {
             });
         }
         else if (newData.type === "param") {
+            if (newData.name === "balanceStatus") {
+                groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
+                console.log(groupChargeStatus);
+            }
             io.sockets.emit("systemState", {
                 message: input,
                 handle: "Controller_1"
             });
-            if (newData.name === "balanceStatus") {
-                var groupChargeStatus_1;
-                groupChargeStatus_1[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
-                console.log(groupChargeStatus_1);
-            }
         }
     }
 });
@@ -190,24 +194,27 @@ controller_2_input.on("data", function (data) {
 });
 driver_1_input.on("data", function (data) {
     var input = data.toString();
+    console.log("Driver: " + input);
     if (input.charAt(0) != "$") { //Send log message to the client
-        var _params = JSON.parse(input);
-        if (_params.type === "log") {
-            io.sockets.emit("systemLog", {
-                message: input,
-                handle: "Driver"
-            });
-        }
-        else if (_params.type === "param") {
-            clientREDIS.set(_params.name, _params.value);
-            io.sockets.emit("systemState", {
-                message: input,
-                handle: "Driver"
-            });
+        if (utilities.validateJSON(input)) {
+            var _params = JSON.parse(input);
+            if (_params.type === "log") {
+                io.sockets.emit("systemLog", {
+                    message: input,
+                    handle: "Driver"
+                });
+            }
+            else if (_params.type === "param") {
+                clientREDIS.set(_params.name, _params.value);
+                io.sockets.emit("systemState", {
+                    message: input,
+                    handle: "Driver",
+                    type: 'relayState'
+                });
+            }
         }
     }
     else { //Get desired gear setting from redis and write it to driver
-        console.log("Driver: " + input);
         switch (input.substring(0, input.length - 1)) { //Ignore \n at the end of input, msg length is 11 characters
             case "$getParams":
                 clientREDIS.get("driverState", function (err, reply) {
@@ -236,6 +243,11 @@ driver_1_input.on("data", function (data) {
                         return console.log("Error on write: " + err.message);
                     }
                 });
+                io.sockets.emit("systemState", {
+                    message: JSON.stringify({ origin: "Driver", param: "isCharging", value: true }),
+                    handle: "Driver",
+                    type: 'charging'
+                });
                 break;
             case "$!charging":
                 console.log("Charging completed");
@@ -248,6 +260,16 @@ driver_1_input.on("data", function (data) {
                     if (err) {
                         return console.log("Error on write: " + err.message);
                     }
+                });
+                io.sockets.emit("systemState", {
+                    message: JSON.stringify({ origin: "Driver", param: "isCharging", value: false }),
+                    handle: "Driver",
+                    type: 'charging'
+                });
+                io.sockets.emit("systemState", {
+                    message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: false }),
+                    handle: "Driver",
+                    type: 'charging'
                 });
                 break;
             case "$B1":
@@ -262,6 +284,11 @@ driver_1_input.on("data", function (data) {
                         return console.log("Error on write: " + err.message);
                     }
                 });
+                io.sockets.emit("systemState", {
+                    message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: true }),
+                    handle: "Driver",
+                    type: 'charging'
+                });
                 break;
             default:
                 console.log("Invalid request from the driver: " + input);
@@ -271,10 +298,18 @@ driver_1_input.on("data", function (data) {
 thermo_input.on("data", function (data) {
     var _input = data.toString();
     if (_input.charAt(0) !== '$') {
-        io.sockets.emit("dataset", {
-            message: _input,
-            handle: "Thermo"
-        });
+        if (utilities.validateJSON(_input)) {
+            var _data = JSON.parse(_input);
+            if (_data.type === 'measurement') {
+                io.sockets.emit("dataset", {
+                    message: _input,
+                    handle: "Thermo"
+                });
+            }
+            else if (_data.type === 'measurement') {
+                console.log(_input);
+            }
+        }
     }
     else {
         if (_input.substring(0, 5) === '$init') {
@@ -307,7 +342,8 @@ io.on("connection", function (socket) {
                 groupChargeStatus: groupChargeStatus,
                 thermoDevice: config.port.thermo,
                 temperatureLimit: config.limits.thermoMax,
-                voltageLimit: config.limits.serialMax
+                voltageLimit: config.limits.serialMax,
+                isCharging: false
             }),
             handle: "Server"
         });
@@ -369,8 +405,16 @@ io.on("connection", function (socket) {
                 break;
             case "driver":
                 console.log(data.command);
-                //Logic from UI to server
-                clientREDIS.set("driverState", data.command); //Driver, Reverse, Cruiser, Waterpump
+                if (data.type === 'instant') {
+                    driver_1.write(data.command, function (err) {
+                        if (err) {
+                            return console.log("Error on write: " + err.message);
+                        }
+                    });
+                }
+                else {
+                    clientREDIS.set("driverState", data.command); //Driver, Reverse, Cruiser, Waterpump
+                }
                 break;
         }
         ;
