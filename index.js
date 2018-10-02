@@ -1,6 +1,8 @@
 #!/user/bin/env node
 "use strict";
 exports.__esModule = true;
+var https = require("https");
+var fs = require("fs");
 var express = require("express");
 var socket = require("socket.io");
 var redis = require("redis");
@@ -49,10 +51,17 @@ clientREDIS.on("connect", function () {
 clientREDIS.set("driverState", "0000"); //Driver, Reverse, Cruiser
 clientREDIS.set("groupChargeStatus", "0,0,0,0,0,0,0,0,0,0"); //Group 1, Group 2...
 clientREDIS.set("charging", "true");
+var sslOptions = {
+    key: fs.readFileSync('regni-key.pem'),
+    cert: fs.readFileSync('regni-cert.pem')
+};
 var app = express();
-var server = app.listen(4000, function () {
-    console.log("Listening port 4000");
+var server = https.createServer(sslOptions, app).listen(443, function () {
+    console.log('Server started');
 });
+/*const server = app.listen(4000, () => { //Start server
+    console.log(`Listening port 4000`)
+});*/
 app.use(function (req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -383,7 +392,27 @@ io.on("connection", function (socket) {
                 });
             });
         }, function (error) {
-            console.warn(error);
+            utilities.getParam(clientREDIS, "driverState").then(function (result) {
+                socket.emit("systemParam", {
+                    message: JSON.stringify({
+                        weatherAPI: config.api.weather,
+                        mapAPI: config.api.maps,
+                        remoteAddress: config.address.remoteAddress,
+                        controller_1: config.port.controllerPort_1,
+                        controller_2: config.port.controllerPort_2,
+                        driverPort: config.port.driverPort,
+                        driverState: result[0],
+                        remoteUpdateInterval: config.interval / 60000,
+                        groupChargeStatus: groupChargeStatus,
+                        thermoDevice: config.port.thermo,
+                        temperatureLimit: config.limits.thermoMax,
+                        voltageLimit: config.limits.serialMax,
+                        isCharging: false,
+                        inverterValues: JSON.stringify({ def: error })
+                    }),
+                    handle: "Server"
+                });
+            });
         });
     }
     socket.on("command", function (data) {

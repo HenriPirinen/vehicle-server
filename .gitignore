@@ -3,3 +3,6 @@ index.ts
 utilities.ts
 tsconfig.json
 externals.d.ts
+regni-key.pem
+regni-csr.pem
+regni-cert.pem

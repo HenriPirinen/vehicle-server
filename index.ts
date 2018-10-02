@@ -1,4 +1,6 @@
 #!/user/bin/env node
+import * as https from 'https';
+import * as fs from 'fs';
 import * as express from 'express';
 import * as socket from 'socket.io';
 import * as redis from 'redis';
@@ -55,10 +57,19 @@ clientREDIS.set(`driverState`, `0000`); //Driver, Reverse, Cruiser
 clientREDIS.set(`groupChargeStatus`, `0,0,0,0,0,0,0,0,0,0`); //Group 1, Group 2...
 clientREDIS.set(`charging`, `true`);
 
+const sslOptions = {
+	key: fs.readFileSync('regni-key.pem'),
+	cert: fs.readFileSync('regni-cert.pem')
+}
+
 const app = express();
-const server = app.listen(4000, () => { //Start server
+const server = https.createServer(sslOptions, app).listen(443, () => {
+	console.log('Server started');
+})
+
+/*const server = app.listen(4000, () => { //Start server
 	console.log(`Listening port 4000`)
-});
+});*/
 
 app.use(function (req, res, next) {
 	res.header("Access-Control-Allow-Origin", "*");
@@ -402,7 +413,27 @@ io.on(`connection`, (socket: any) => {
 				});
 			});
 		}, error => {
-			console.warn(error);
+			utilities.getParam(clientREDIS, `driverState`).then(function (result) {
+				socket.emit(`systemParam`, {		//Send notification to new client
+					message: JSON.stringify({
+						weatherAPI: config.api.weather,
+						mapAPI: config.api.maps,
+						remoteAddress: config.address.remoteAddress,
+						controller_1: config.port.controllerPort_1,
+						controller_2: config.port.controllerPort_2,
+						driverPort: config.port.driverPort,
+						driverState: result[0],
+						remoteUpdateInterval: config.interval / 60000,
+						groupChargeStatus: groupChargeStatus,
+						thermoDevice: config.port.thermo,
+						temperatureLimit: config.limits.thermoMax,
+						voltageLimit: config.limits.serialMax,
+						isCharging: false,
+						inverterValues: JSON.stringify({def: error})
+					}),
+					handle: `Server`
+				});
+			});
 		}
 		)
 	}
