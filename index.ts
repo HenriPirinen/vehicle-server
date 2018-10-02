@@ -1,3 +1,4 @@
+#!/user/bin/env node
 import * as express from 'express';
 import * as socket from 'socket.io';
 import * as redis from 'redis';
@@ -8,6 +9,8 @@ import * as fetch from 'node-fetch';
 import * as process from 'process';
 import * as bluebird from 'bluebird';
 import { exec, execSync } from 'child_process';
+import * as path from 'path';
+import * as arpScanner from 'arpscan';
 // @ts-ignore
 import * as utilities from './utilities';
 // @ts-ignore
@@ -57,6 +60,19 @@ const server = app.listen(4000, () => { //Start server
 	console.log(`Listening port 4000`)
 });
 
+app.use(function (req, res, next) {
+	res.header("Access-Control-Allow-Origin", "*");
+	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+	next();
+});
+
+// @ts-ignore
+app.use('/webApp/', express.static(path.join(__dirname, 'webApp')));
+app.get('/*', function (req, res) {
+	// @ts-ignore
+	res.sendFile(path.join(__dirname, 'webApp', 'index.html'));
+});
+
 const io = socket(server);
 
 const controller_1 = new SerialPort(config.port.controllerPort_1, { //initiate USB
@@ -100,7 +116,7 @@ clientMQTT.on(`connect`, () => {
 
 
 clientMQTT.on(`message`, (topic, message) => {
-	if(topic == `vehicleExternalCommand`){
+	if (topic == `vehicleExternalCommand`) {
 		let _command = message.toString();
 		driver_1.write(_command, function (err) {
 			if (err) {
@@ -114,13 +130,13 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
 		console.log(input);
-		if (input.substring(0,5) === '$init') {
+		if (input.substring(0, 5) === '$init') {
 			controller_1.write(`0,${config.limits.serialMax}`, function (err) {
 				if (err) {
 					return console.log(`Error on write: ${err.message}`);
 				}
 			});
-		} else if (input.substring(0,14) === '$!serialCharge'){
+		} else if (input.substring(0, 14) === '$!serialCharge') {
 			driver_1.write('SC0', function (err) {
 				if (err) {
 					return console.log(`Error on write: ${err.message}`);
@@ -163,13 +179,13 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
 		console.log(input);
-		if (input.substring(0,5) === '$init') {
+		if (input.substring(0, 5) === '$init') {
 			controller_2.write(`5,${config.limits.serialMax}`, function (err) {
 				if (err) {
 					return console.log(`Error on write: ${err.message}`);
 				}
 			});
-		} else if (input.substring(0,14) === '$!serialCharge'){
+		} else if (input.substring(0, 14) === '$!serialCharge') {
 			driver_1.write('SC0', function (err) {
 				if (err) {
 					return console.log(`Error on write: ${err.message}`);
@@ -212,7 +228,7 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	console.log("Driver: " + input);
 	if (input.charAt(0) != `$`) { //Send log message to the client
-		if(utilities.validateJSON(input)){
+		if (utilities.validateJSON(input)) {
 			let _params = JSON.parse(input);
 			if (_params.type === `log`) {
 				io.sockets.emit(`systemLog`, {
@@ -258,7 +274,7 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 					}
 				});
 				io.sockets.emit(`systemState`, {
-					message: JSON.stringify({origin:"Driver", param:"isCharging", value:true}),
+					message: JSON.stringify({ origin: "Driver", param: "isCharging", value: true }),
 					handle: `Driver`,
 					type: 'charging'
 				});
@@ -276,12 +292,12 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 					}
 				});
 				io.sockets.emit(`systemState`, {
-					message: JSON.stringify({origin:"Driver", param:"isCharging", value:false}),
+					message: JSON.stringify({ origin: "Driver", param: "isCharging", value: false }),
 					handle: `Driver`,
 					type: 'charging'
 				});
 				io.sockets.emit(`systemState`, {
-					message: JSON.stringify({origin:"Driver", param:"isBalancing", value:false}),
+					message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: false }),
 					handle: `Driver`,
 					type: 'charging'
 				});
@@ -299,7 +315,7 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 					}
 				});
 				io.sockets.emit(`systemState`, {
-					message: JSON.stringify({origin:"Driver", param:"isBalancing", value:true}),
+					message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: true }),
 					handle: `Driver`,
 					type: 'charging'
 				});
@@ -310,22 +326,22 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	}
 });
 
-thermo_input.on(`data`, (data:any) => {
+thermo_input.on(`data`, (data: any) => {
 	let _input = data.toString();
 	if (_input.charAt(0) !== '$') {
-		if(utilities.validateJSON(_input)){
+		if (utilities.validateJSON(_input)) {
 			let _data = JSON.parse(_input);
-			if(_data.type === 'measurement'){
+			if (_data.type === 'measurement') {
 				io.sockets.emit(`dataset`, { //Send dataset to client via websocket
 					message: _input,
 					handle: `Thermo`
 				});
-			} else if(_data.type === 'measurement'){
+			} else if (_data.type === 'measurement') {
 				console.log(_input);
 			}
 		}
 	} else {
-		if (_input.substring(0,5) === '$init') {
+		if (_input.substring(0, 5) === '$init') {
 			thermo.write((config.limits.thermoMax).toString(), function (err) {
 				if (err) {
 					return console.log(`Error on write: ${err.message}`);
@@ -342,26 +358,54 @@ io.on(`connection`, (socket: any) => {
 			handle: `Server`
 		})
 	}
-	utilities.getParam(clientREDIS, `driverState`).then(function (result) {
-		socket.emit(`systemParam`, {		//Send notification to new client
-			message: JSON.stringify({
-				weatherAPI: config.api.weather,
-				mapAPI: config.api.maps,
-				remoteAddress: config.address.remoteAddress,
-				controller_1: config.port.controllerPort_1,
-				controller_2: config.port.controllerPort_2,
-				driverPort: config.port.driverPort,
-				driverState: result[0],
-				remoteUpdateInterval: config.interval / 60000,
-				groupChargeStatus: groupChargeStatus,
-				thermoDevice: config.port.thermo,
-				temperatureLimit: config.limits.thermoMax,
-				voltageLimit: config.limits.serialMax,
-				isCharging: false
-			}),
-			handle: `Server`
-		});
-	});
+
+	let options = {
+		command: 'arp-scan',
+		interface: 'wlan0',
+		sudo: true
+	}
+	
+	arpScanner(onResult, options); //Find inverter IP address.
+	function onResult(err, data) {
+		let inverterIpAdress = '';
+	
+		if (err) throw err;
+		for (let i = 0; i < data.length; i++) {
+			if (data[i].mac === '5C:CF:7F:8E:26:00') {
+				inverterIpAdress = data[i].ip;
+			}
+		}
+	
+		fetch(`http://${inverterIpAdress}/cmd?cmd=json`)
+		.then(res => res.json())
+		.then(invResult => {
+			console.log(JSON.stringify(invResult));
+			utilities.getParam(clientREDIS, `driverState`).then(function (result) {
+				socket.emit(`systemParam`, {		//Send notification to new client
+					message: JSON.stringify({
+						weatherAPI: config.api.weather,
+						mapAPI: config.api.maps,
+						remoteAddress: config.address.remoteAddress,
+						controller_1: config.port.controllerPort_1,
+						controller_2: config.port.controllerPort_2,
+						driverPort: config.port.driverPort,
+						driverState: result[0],
+						remoteUpdateInterval: config.interval / 60000,
+						groupChargeStatus: groupChargeStatus,
+						thermoDevice: config.port.thermo,
+						temperatureLimit: config.limits.thermoMax,
+						voltageLimit: config.limits.serialMax,
+						isCharging: false,
+						inverterValues: JSON.stringify(invResult) 
+					}),
+					handle: `Server`
+				});
+			});
+		}, error => {
+			console.warn(error);
+		}
+		)
+	}
 
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
 		switch (data.target) {
@@ -421,7 +465,7 @@ io.on(`connection`, (socket: any) => {
 				break;
 			case "driver":
 				console.log(data.command);
-				if(data.type === 'instant'){
+				if (data.type === 'instant') {
 					driver_1.write(data.command, function (err) {
 						if (err) {
 							return console.log(`Error on write: ${err.message}`);
@@ -435,7 +479,7 @@ io.on(`connection`, (socket: any) => {
 	});
 
 	socket.on('reconfigure', (data) => {
-		exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000} ${data.voltageLimit} ${data. temperatureLimit}  ${data.thermoDevice}`, function (err, stdout, stderr) {
+		exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000} ${data.voltageLimit} ${data.temperatureLimit}  ${data.thermoDevice}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;

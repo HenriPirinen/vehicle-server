@@ -1,3 +1,4 @@
+#!/user/bin/env node
 "use strict";
 exports.__esModule = true;
 var express = require("express");
@@ -10,6 +11,8 @@ var fetch = require("node-fetch");
 var process = require("process");
 var bluebird = require("bluebird");
 var child_process_1 = require("child_process");
+var path = require("path");
+var arpScanner = require("arpscan");
 // @ts-ignore
 var utilities = require("./utilities");
 // @ts-ignore
@@ -49,6 +52,17 @@ clientREDIS.set("charging", "true");
 var app = express();
 var server = app.listen(4000, function () {
     console.log("Listening port 4000");
+});
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+// @ts-ignore
+app.use('/webApp/', express.static(path.join(__dirname, 'webApp')));
+app.get('/*', function (req, res) {
+    // @ts-ignore
+    res.sendFile(path.join(__dirname, 'webApp', 'index.html'));
 });
 var io = socket(server);
 var controller_1 = new SerialPort(config.port.controllerPort_1, {
@@ -328,26 +342,50 @@ io.on("connection", function (socket) {
             handle: "Server"
         });
     }
-    utilities.getParam(clientREDIS, "driverState").then(function (result) {
-        socket.emit("systemParam", {
-            message: JSON.stringify({
-                weatherAPI: config.api.weather,
-                mapAPI: config.api.maps,
-                remoteAddress: config.address.remoteAddress,
-                controller_1: config.port.controllerPort_1,
-                controller_2: config.port.controllerPort_2,
-                driverPort: config.port.driverPort,
-                driverState: result[0],
-                remoteUpdateInterval: config.interval / 60000,
-                groupChargeStatus: groupChargeStatus,
-                thermoDevice: config.port.thermo,
-                temperatureLimit: config.limits.thermoMax,
-                voltageLimit: config.limits.serialMax,
-                isCharging: false
-            }),
-            handle: "Server"
+    var options = {
+        command: 'arp-scan',
+        interface: 'wlan0',
+        sudo: true
+    };
+    arpScanner(onResult, options); //Find inverter IP address.
+    function onResult(err, data) {
+        var inverterIpAdress = '';
+        if (err)
+            throw err;
+        for (var i = 0; i < data.length; i++) {
+            if (data[i].mac === '5C:CF:7F:8E:26:00') {
+                inverterIpAdress = data[i].ip;
+            }
+        }
+        fetch("http://" + inverterIpAdress + "/cmd?cmd=json")
+            .then(function (res) { return res.json(); })
+            .then(function (invResult) {
+            console.log(JSON.stringify(invResult));
+            utilities.getParam(clientREDIS, "driverState").then(function (result) {
+                socket.emit("systemParam", {
+                    message: JSON.stringify({
+                        weatherAPI: config.api.weather,
+                        mapAPI: config.api.maps,
+                        remoteAddress: config.address.remoteAddress,
+                        controller_1: config.port.controllerPort_1,
+                        controller_2: config.port.controllerPort_2,
+                        driverPort: config.port.driverPort,
+                        driverState: result[0],
+                        remoteUpdateInterval: config.interval / 60000,
+                        groupChargeStatus: groupChargeStatus,
+                        thermoDevice: config.port.thermo,
+                        temperatureLimit: config.limits.thermoMax,
+                        voltageLimit: config.limits.serialMax,
+                        isCharging: false,
+                        inverterValues: JSON.stringify(invResult)
+                    }),
+                    handle: "Server"
+                });
+            });
+        }, function (error) {
+            console.warn(error);
         });
-    });
+    }
     socket.on("command", function (data) {
         switch (data.target) {
             case "controller_1":
