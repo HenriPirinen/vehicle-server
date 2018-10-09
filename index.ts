@@ -519,13 +519,18 @@ io.on(`connection`, (socket: any) => {
 	})
 
 	socket.on(`update`, (command) => {
-		console.log(command.target);
-		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t ${command.target} -a update`, function (err, stdout, stderr) {
+		let targets = command.target.split(" ");
+		let bashCommand = "sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh";
+		for(let device of targets){
+			bashCommand += ` ${device}`
+		}
+		console.log(bashCommand);
+		/*exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh ${command.target}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;
 			}
-		})
+		})*/
 	})
 });
 

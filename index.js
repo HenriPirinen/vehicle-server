@@ -495,13 +495,19 @@ io.on("connection", function (socket) {
         });
     });
     socket.on("update", function (command) {
-        console.log(command.target);
-        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh -t " + command.target + " -a update", function (err, stdout, stderr) {
+        var targets = command.target.split(" ");
+        var bashCommand = "sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh";
+        for (var _i = 0, targets_1 = targets; _i < targets_1.length; _i++) {
+            var device = targets_1[_i];
+            bashCommand += " " + device;
+        }
+        console.log(bashCommand);
+        /*exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh ${command.target}`, function (err, stdout, stderr) {
             if (err) {
                 console.log(stderr);
                 return;
             }
-        });
+        })*/
     });
 });
 setInterval(function () {
