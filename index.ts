@@ -333,8 +333,10 @@ thermo_input.on(`data`, (data: any) => {
 					handle: `Thermo`
 				});
 			} else if (_data.type === 'log') {
-				console.log(_input);
-				//TODO: Send warning to UI
+				io.socket.emit(`thermalWarning`,{
+					message: _input,
+					handle: `Thermo`
+				});
 			}
 		}
 	} else {
@@ -505,7 +507,7 @@ io.on(`connection`, (socket: any) => {
 		for(let device of targets){
 			bashCommand += ` ${device}`
 		}
-		
+
 		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh ${command.target}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);

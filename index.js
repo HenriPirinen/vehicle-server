@@ -316,8 +316,10 @@ thermo_input.on("data", function (data) {
                 });
             }
             else if (_data.type === 'log') {
-                console.log(_input);
-                //TODO: Send warning to UI
+                io.socket.emit("thermalWarning", {
+                    message: _input,
+                    handle: "Thermo"
+                });
             }
         }
     }
