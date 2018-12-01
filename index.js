@@ -483,7 +483,6 @@ io.on("connection", function (socket) {
             var device = targets_1[_i];
             bashCommand += " " + device;
         }
-        console.log(bashCommand);
         child_process_1.exec("sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh " + command.target, function (err, stdout, stderr) {
             if (err) {
                 console.log(stderr);
