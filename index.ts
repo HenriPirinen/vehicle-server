@@ -64,12 +64,8 @@ const sslOptions = {
 
 const app = express();
 const server = https.createServer(sslOptions, app).listen(443, () => {
-	console.log('Server started');
+	console.log('Serving webbapp on port 443');
 })
-
-/*const server = app.listen(4000, () => { //Start server
-	console.log(`Listening port 4000`)
-});*/
 
 app.use(function (req, res, next) {
 	res.header("Access-Control-Allow-Origin", "*");
@@ -131,7 +127,7 @@ clientMQTT.on(`message`, (topic, message) => {
 		let _command = message.toString();
 		driver_1.write(_command, function (err) {
 			if (err) {
-				return console.log(`Error on write: ${err.message}`);
+				return console.log(`Driver: Error on write: ${err.message}`);
 			}
 		});
 	}
@@ -140,28 +136,25 @@ clientMQTT.on(`message`, (topic, message) => {
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
-		console.log(input);
 		if (input.substring(0, 5) === '$init') {
 			controller_1.write(`0,${config.limits.serialMax}`, function (err) {
 				if (err) {
-					return console.log(`Error on write: ${err.message}`);
+					return console.log(`Controller: Error on write: ${err.message}`);
 				}
 			});
 		} else if (input.substring(0, 14) === '$!serialCharge') {
 			driver_1.write('SC0', function (err) {
 				if (err) {
-					return console.log(`Error on write: ${err.message}`);
+					return console.log(`Driver: Error on write: ${err.message}`);
 				}
 			});
 		}
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
-			//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
 				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-				//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 			}
 
 			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
@@ -176,7 +169,6 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 		} else if (newData.type === "param") {
 			if (newData.name === "balanceStatus") {
 				groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
-				console.log(groupChargeStatus);
 			}
 			io.sockets.emit(`systemState`, { //Send log to client via websocket
 				message: input,
@@ -189,28 +181,25 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
-		console.log(input);
 		if (input.substring(0, 5) === '$init') {
 			controller_2.write(`5,${config.limits.serialMax}`, function (err) {
 				if (err) {
-					return console.log(`Error on write: ${err.message}`);
+					return console.log(`Controller: Error on write: ${err.message}`);
 				}
 			});
 		} else if (input.substring(0, 14) === '$!serialCharge') {
 			driver_1.write('SC0', function (err) {
 				if (err) {
-					return console.log(`Error on write: ${err.message}`);
+					return console.log(`Driver: Error on write: ${err.message}`);
 				}
 			});
 		}
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
 		let newData = JSON.parse(input);
 		if (newData.type === "data") {
-			//console.log("----------------Group " + newData.Group + "--------------------"); //Print pretty table
 			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
 				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
 				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-				//console.log("Voltage " + i + ": " + dataObject.group[newData.Group].voltage[i] + "	  |	  Temperature " + i + ": " + dataObject.group[newData.Group].temperature[i]);
 			}
 
 			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
@@ -225,7 +214,6 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 		} else if (newData.type === "param") {
 			if (newData.name === "balanceStatus") {
 				groupChargeStatus[parseInt(newData.value.charAt(0), 10) + 5] = parseInt(newData.value.charAt(1), 10);
-				console.log(groupChargeStatus);
 			}
 			io.sockets.emit(`systemState`, { //Send log to client via websocket
 				message: input,
@@ -237,7 +225,6 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 
 driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
-	console.log("Driver: " + input);
 	if (input.charAt(0) != `$`) { //Send log message to the client
 		if (utilities.validateJSON(input)) {
 			let _params = JSON.parse(input);
@@ -261,7 +248,7 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				clientREDIS.get(`driverState`, (err, reply) => {
 					driver_1.write(reply, function (err) {
 						if (err) {
-							return console.log(`Error on write: ${err.message}`);
+							return console.log(`Driver: Error on write: ${err.message}`);
 						}
 					});
 					let _newState = [];
@@ -273,15 +260,14 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$charging `:
-				console.log("Vehicle is charging...");
 				controller_1.write('C1', function (err) {
 					if (err) {
-						return console.log(`Error on write: ${err.message}`);
+						return console.log(`Controller: Error on write: ${err.message}`);
 					}
 				});
 				controller_2.write('C1', function (err) {
 					if (err) {
-						return console.log(`Error on write: ${err.message}`);
+						return console.log(`Controller: Error on write: ${err.message}`);
 					}
 				});
 				io.sockets.emit(`systemState`, {
@@ -291,15 +277,14 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$!charging`:
-				console.log("Charging completed");
 				controller_1.write('C0', function (err) {
 					if (err) {
-						return console.log(`Error on write: ${err.message}`);
+						return console.log(`Controller: Error on write: ${err.message}`);
 					}
 				});
 				controller_2.write('C0', function (err) {
 					if (err) {
-						return console.log(`Error on write: ${err.message}`);
+						return console.log(`Controller: Error on write: ${err.message}`);
 					}
 				});
 				io.sockets.emit(`systemState`, {
@@ -317,12 +302,12 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				console.log(`Start balance`);
 				controller_1.write('$B1', function (err) {
 					if (err) {
-						return console.log(`Error on write: ${err.message}`);
+						return console.log(`Controller: Error on write: ${err.message}`);
 					}
 				});
 				controller_2.write('$B1', function (err) {
 					if (err) {
-						return console.log(`Error on write: ${err.message}`);
+						return console.log(`Controller: Error on write: ${err.message}`);
 					}
 				});
 				io.sockets.emit(`systemState`, {
@@ -347,15 +332,16 @@ thermo_input.on(`data`, (data: any) => {
 					message: _input,
 					handle: `Thermo`
 				});
-			} else if (_data.type === 'measurement') {
+			} else if (_data.type === 'log') {
 				console.log(_input);
+				//TODO: Send warning to UI
 			}
 		}
 	} else {
 		if (_input.substring(0, 5) === '$init') {
 			thermo.write((config.limits.thermoMax).toString(), function (err) {
 				if (err) {
-					return console.log(`Error on write: ${err.message}`);
+					return console.log(`Thermo: Error on write: ${err.message}`);
 				}
 			});
 		}
@@ -441,8 +427,6 @@ io.on(`connection`, (socket: any) => {
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
 		switch (data.target) {
 			case "controller_1":
-				console.log(data.target);
-				console.log(data.command);
 				controller_1.write(data.command, function (err: any) {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
@@ -455,8 +439,6 @@ io.on(`connection`, (socket: any) => {
 				});
 				break;
 			case "controller_2":
-				console.log(data.target);
-				console.log(data.command);
 				controller_2.write(data.command, function (err) {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
@@ -495,7 +477,6 @@ io.on(`connection`, (socket: any) => {
 
 				break;
 			case "driver":
-				console.log(data.command);
 				if (data.type === 'instant') {
 					driver_1.write(data.command, function (err) {
 						if (err) {
@@ -524,16 +505,17 @@ io.on(`connection`, (socket: any) => {
 		for(let device of targets){
 			bashCommand += ` ${device}`
 		}
-		console.log(bashCommand);
-		/*exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh ${command.target}`, function (err, stdout, stderr) {
+		
+		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh ${command.target}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
 				return;
 			}
-		})*/
+		})
 	})
 });
 
 setInterval(function () {
+	console.log("Uploading data to cloud");
 	utilities.uploadData(clientMQTT, dataObject);
 }, config.interval);
