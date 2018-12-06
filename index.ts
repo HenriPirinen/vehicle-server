@@ -333,7 +333,7 @@ thermo_input.on(`data`, (data: any) => {
 					handle: `Thermo`
 				});
 			} else if (_data.type === 'log') {
-				io.socket.emit(`thermalWarning`,{
+				io.sockets.emit(`thermalWarning`,{
 					message: _input,
 					handle: `Thermo`
 				});

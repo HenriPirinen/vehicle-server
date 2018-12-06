@@ -316,7 +316,7 @@ thermo_input.on("data", function (data) {
                 });
             }
             else if (_data.type === 'log') {
-                io.socket.emit("thermalWarning", {
+                io.sockets.emit("thermalWarning", {
                     message: _input,
                     handle: "Thermo"
                 });
