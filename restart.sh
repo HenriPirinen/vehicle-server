@@ -7,7 +7,8 @@ controller2=$5
 driver=$6
 interval=$7
 serialMax=$8
-if [[ -n $weatherKey  ]];
+thermoMax=$9
+if [[ -n $weatherKey  ]]; #If params exist, reconfigure. Otherwise proceed to start / restart
 then
 cat >/home/pi/Public/nodeServer/serverCfg.js <<EOL
 module.exports = {
@@ -19,7 +20,7 @@ module.exports = {
         controllerPort_1: "$controller1",
         controllerPort_2: "$controller2",
         driverPort: "$driver",
-	thermo: "/dev/thermo.1"
+	    thermo: '/dev/thermo.1'
     },
     address: {
         remoteAddress: '$address'
@@ -38,7 +39,7 @@ module.exports = {
         clean: true,
     },
     limits:{
-        thermoMax: 30,
+        thermoMax: "$thermoMax",
         serialMax: "$serialMax" //At this point, change serial charge to balance. I.e. 370 = 3.70V
     }
 }
