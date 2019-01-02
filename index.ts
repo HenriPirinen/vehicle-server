@@ -417,7 +417,7 @@ io.on(`connection`, (socket: any) => {
 						temperatureLimit: config.limits.thermoMax,
 						voltageLimit: config.limits.serialMax,
 						isCharging: false,
-						inverterValues: JSON.stringify({def: error})
+						inverterValues: null
 					}),
 					handle: `Server`
 				});
