@@ -8,6 +8,9 @@ driver=$6
 interval=$7
 serialMax=$8
 thermoMax=$9
+thermoDevice=${10}
+mqttUName=${11}
+mqttPWord=${12}
 if [[ -n $weatherKey  ]]; #If params exist, reconfigure. Otherwise proceed to start / restart
 then
 cat >/home/pi/Public/nodeServer/serverCfg.js <<EOL
@@ -20,7 +23,7 @@ module.exports = {
         controllerPort_1: "$controller1",
         controllerPort_2: "$controller2",
         driverPort: "$driver",
-	    thermo: '/dev/thermo.1'
+	thermo: "$thermoDevice"
     },
     address: {
         remoteAddress: '$address'
@@ -30,8 +33,8 @@ module.exports = {
 	port: 23664,
         host: '$address',
         clientId: 'mqttjs_' + Math.random().toString(16).substr(2, 8),
-        username: 'localServer',
-        password: 'b7utgv94',
+        username: "$mqttUName",
+        password: "$mqttPWord",
         keepalive: 60,
         reconnectPeriod: 1000,
         protocolId: 'MQTT',

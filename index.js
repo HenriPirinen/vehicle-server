@@ -375,7 +375,9 @@ io.on("connection", function (socket) {
                         temperatureLimit: config.limits.thermoMax,
                         voltageLimit: config.limits.serialMax,
                         isCharging: false,
-                        inverterValues: JSON.stringify(invResult)
+                        inverterValues: JSON.stringify(invResult),
+                        mqttUName: config.mqttOptions.username,
+                        mqttPWord: config.mqttOptions.password
                     }),
                     handle: "Server"
                 });
@@ -397,7 +399,9 @@ io.on("connection", function (socket) {
                         temperatureLimit: config.limits.thermoMax,
                         voltageLimit: config.limits.serialMax,
                         isCharging: false,
-                        inverterValues: null
+                        inverterValues: null,
+                        mqttUName: config.mqttOptions.username,
+                        mqttPWord: config.mqttOptions.password
                     }),
                     handle: "Server"
                 });
@@ -471,7 +475,7 @@ io.on("connection", function (socket) {
         ;
     });
     socket.on('reconfigure', function (data) {
-        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000 + " " + data.voltageLimit + " " + data.temperatureLimit + "  " + data.thermoDevice, function (err, stdout, stderr) {
+        child_process_1.exec("sudo bash /home/pi/Public/nodeServer/restart.sh " + data.weather + " " + data.map + " " + data.address + " " + data.controller1port + " " + data.controller2port + " " + data.driverPort + " " + data.interval * 60000 + " " + data.voltageLimit + " " + data.temperatureLimit + " " + data.thermoDevice + " " + data.mqttUName + " " + data.mqttPWord, function (err, stdout, stderr) {
             if (err) {
                 console.log(stderr);
                 return;
