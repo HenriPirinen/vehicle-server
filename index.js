@@ -116,16 +116,14 @@ controller_1_input.on("data", function (data) {
     if (input.charAt(0) === '$') {
         if (input.substring(0, 5) === '$init') {
             controller_1.write("0," + config.limits.serialMax, function (err) {
-                if (err) {
+                if (err)
                     return console.log("Controller: Error on write: " + err.message);
-                }
             });
         }
         else if (input.substring(0, 14) === '$!serialCharge') {
             driver_1.write('SC0', function (err) {
-                if (err) {
+                if (err)
                     return console.log("Driver: Error on write: " + err.message);
-                }
             });
         }
     }
@@ -163,16 +161,14 @@ controller_2_input.on("data", function (data) {
     if (input.charAt(0) === '$') {
         if (input.substring(0, 5) === '$init') {
             controller_2.write("5," + config.limits.serialMax, function (err) {
-                if (err) {
+                if (err)
                     return console.log("Controller: Error on write: " + err.message);
-                }
             });
         }
         else if (input.substring(0, 14) === '$!serialCharge') {
             driver_1.write('SC0', function (err) {
-                if (err) {
+                if (err)
                     return console.log("Driver: Error on write: " + err.message);
-                }
             });
         }
     }
@@ -231,9 +227,8 @@ driver_1_input.on("data", function (data) {
             case "$getParams":
                 clientREDIS.get("driverState", function (err, reply) {
                     driver_1.write(reply, function (err) {
-                        if (err) {
+                        if (err)
                             return console.log("Driver: Error on write: " + err.message);
-                        }
                     });
                     var _newState = [];
                     _newState[0] = reply.charAt(0);
@@ -245,14 +240,12 @@ driver_1_input.on("data", function (data) {
                 break;
             case "$charging ":
                 controller_1.write('C1', function (err) {
-                    if (err) {
+                    if (err)
                         return console.log("Controller: Error on write: " + err.message);
-                    }
                 });
                 controller_2.write('C1', function (err) {
-                    if (err) {
+                    if (err)
                         return console.log("Controller: Error on write: " + err.message);
-                    }
                 });
                 io.sockets.emit("systemState", {
                     message: JSON.stringify({ origin: "Driver", param: "isCharging", value: true }),
@@ -262,14 +255,12 @@ driver_1_input.on("data", function (data) {
                 break;
             case "$!charging":
                 controller_1.write('C0', function (err) {
-                    if (err) {
+                    if (err)
                         return console.log("Controller: Error on write: " + err.message);
-                    }
                 });
                 controller_2.write('C0', function (err) {
-                    if (err) {
+                    if (err)
                         return console.log("Controller: Error on write: " + err.message);
-                    }
                 });
                 io.sockets.emit("systemState", {
                     message: JSON.stringify({ origin: "Driver", param: "isCharging", value: false }),
@@ -285,14 +276,12 @@ driver_1_input.on("data", function (data) {
             case "$B1":
                 console.log("Start balance");
                 controller_1.write('$B1', function (err) {
-                    if (err) {
+                    if (err)
                         return console.log("Controller: Error on write: " + err.message);
-                    }
                 });
                 controller_2.write('$B1', function (err) {
-                    if (err) {
+                    if (err)
                         return console.log("Controller: Error on write: " + err.message);
-                    }
                 });
                 io.sockets.emit("systemState", {
                     message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: true }),
@@ -327,9 +316,8 @@ thermo_input.on("data", function (data) {
     else {
         if (_input.substring(0, 5) === '$init') {
             thermo.write((config.limits.thermoMax).toString(), function (err) {
-                if (err) {
+                if (err)
                     return console.log("Thermo: Error on write: " + err.message);
-                }
             });
         }
     }
@@ -341,16 +329,12 @@ io.on("connection", function (socket) {
             handle: "Server"
         });
     }
-    var options = {
-        command: 'arp-scan',
-        interface: 'wlan0',
-        sudo: true
-    };
+    var options = { command: 'arp-scan', interface: 'wlan0', sudo: true }; //arpScanner options
     arpScanner(onResult, options); //Find inverter IP address.
     function onResult(err, data) {
         if (err)
             throw err;
-        for (var i = 0; i < data.length; i++) {
+        for (var i = 0; i < data.length; i++) { //Search scanner results
             if (data[i].mac === '5C:CF:7F:8E:26:00') {
                 inverterIpAdress = data[i].ip;
             }
@@ -483,12 +467,6 @@ io.on("connection", function (socket) {
         });
     });
     socket.on("update", function (command) {
-        var targets = command.target.split(" ");
-        var bashCommand = "sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh";
-        for (var _i = 0, targets_1 = targets; _i < targets_1.length; _i++) {
-            var device = targets_1[_i];
-            bashCommand += " " + device;
-        }
         child_process_1.exec("sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh " + command.target, function (err, stdout, stderr) {
             if (err) {
                 console.log(stderr);
@@ -498,6 +476,5 @@ io.on("connection", function (socket) {
     });
 });
 setInterval(function () {
-    console.log("Uploading data to cloud");
     utilities.uploadData(clientMQTT, dataObject);
 }, config.interval);
