@@ -47,6 +47,7 @@ var dataObject = {
 
 //Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+let inverterIpAdress = '';
 
 const clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
 clientREDIS.on(`connect`, () => {
@@ -125,7 +126,7 @@ clientMQTT.on(`connect`, () => {
 clientMQTT.on(`message`, (topic, message) => {
 	if (topic == `vehicleExternalCommand`) {
 		let _command = message.toString();
-		driver_1.write(_command, function (err) {
+		driver_1.write(_command, (err) => {
 			if (err) {
 				return console.log(`Driver: Error on write: ${err.message}`);
 			}
@@ -137,16 +138,12 @@ controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
 		if (input.substring(0, 5) === '$init') {
-			controller_1.write(`0,${config.limits.serialMax}`, function (err) {
-				if (err) {
-					return console.log(`Controller: Error on write: ${err.message}`);
-				}
+			controller_1.write(`0,${config.limits.serialMax}`, (err) => {
+				if (err) return console.log(`Controller: Error on write: ${err.message}`);
 			});
 		} else if (input.substring(0, 14) === '$!serialCharge') {
-			driver_1.write('SC0', function (err) {
-				if (err) {
-					return console.log(`Driver: Error on write: ${err.message}`);
-				}
+			driver_1.write('SC0', (err) => {
+				if (err) return console.log(`Driver: Error on write: ${err.message}`);
 			});
 		}
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
@@ -182,16 +179,12 @@ controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
 	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
 		if (input.substring(0, 5) === '$init') {
-			controller_2.write(`5,${config.limits.serialMax}`, function (err) {
-				if (err) {
-					return console.log(`Controller: Error on write: ${err.message}`);
-				}
+			controller_2.write(`5,${config.limits.serialMax}`, (err) => {
+				if (err) return console.log(`Controller: Error on write: ${err.message}`);
 			});
 		} else if (input.substring(0, 14) === '$!serialCharge') {
-			driver_1.write('SC0', function (err) {
-				if (err) {
-					return console.log(`Driver: Error on write: ${err.message}`);
-				}
+			driver_1.write('SC0', (err) => {
+				if (err) return console.log(`Driver: Error on write: ${err.message}`);
 			});
 		}
 	} else if (utilities.validateJSON(input)) { //Validate message from arduino
@@ -246,10 +239,8 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 		switch (input.substring(0, input.length - 1)) { //Ignore \n at the end of input, msg length is 11 characters
 			case `$getParams`:
 				clientREDIS.get(`driverState`, (err, reply) => {
-					driver_1.write(reply, function (err) {
-						if (err) {
-							return console.log(`Driver: Error on write: ${err.message}`);
-						}
+					driver_1.write(reply, (err) => {
+						if (err) return console.log(`Driver: Error on write: ${err.message}`);
 					});
 					let _newState = [];
 					_newState[0] = reply.charAt(0);
@@ -260,15 +251,11 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$charging `:
-				controller_1.write('C1', function (err) {
-					if (err) {
-						return console.log(`Controller: Error on write: ${err.message}`);
-					}
+				controller_1.write('C1', (err) => {
+					if (err) return console.log(`Controller: Error on write: ${err.message}`);
 				});
-				controller_2.write('C1', function (err) {
-					if (err) {
-						return console.log(`Controller: Error on write: ${err.message}`);
-					}
+				controller_2.write('C1', (err) => {
+					if (err) return console.log(`Controller: Error on write: ${err.message}`);
 				});
 				io.sockets.emit(`systemState`, {
 					message: JSON.stringify({ origin: "Driver", param: "isCharging", value: true }),
@@ -277,15 +264,11 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$!charging`:
-				controller_1.write('C0', function (err) {
-					if (err) {
-						return console.log(`Controller: Error on write: ${err.message}`);
-					}
+				controller_1.write('C0', (err) => {
+					if (err) return console.log(`Controller: Error on write: ${err.message}`);
 				});
-				controller_2.write('C0', function (err) {
-					if (err) {
-						return console.log(`Controller: Error on write: ${err.message}`);
-					}
+				controller_2.write('C0', (err) => {
+					if (err) return console.log(`Controller: Error on write: ${err.message}`);
 				});
 				io.sockets.emit(`systemState`, {
 					message: JSON.stringify({ origin: "Driver", param: "isCharging", value: false }),
@@ -300,15 +283,11 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				break;
 			case `$B1`:
 				console.log(`Start balance`);
-				controller_1.write('$B1', function (err) {
-					if (err) {
-						return console.log(`Controller: Error on write: ${err.message}`);
-					}
+				controller_1.write('$B1', (err) => {
+					if (err) return console.log(`Controller: Error on write: ${err.message}`);
 				});
-				controller_2.write('$B1', function (err) {
-					if (err) {
-						return console.log(`Controller: Error on write: ${err.message}`);
-					}
+				controller_2.write('$B1', (err) => {
+					if (err) return console.log(`Controller: Error on write: ${err.message}`);
 				});
 				io.sockets.emit(`systemState`, {
 					message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: true }),
@@ -341,10 +320,8 @@ thermo_input.on(`data`, (data: any) => {
 		}
 	} else {
 		if (_input.substring(0, 5) === '$init') {
-			thermo.write((config.limits.thermoMax).toString(), function (err) {
-				if (err) {
-					return console.log(`Thermo: Error on write: ${err.message}`);
-				}
+			thermo.write((config.limits.thermoMax).toString(), (err) => {
+				if (err) return console.log(`Thermo: Error on write: ${err.message}`);
 			});
 		}
 	}
@@ -358,28 +335,22 @@ io.on(`connection`, (socket: any) => {
 		})
 	}
 
-	let options = {
-		command: 'arp-scan',
-		interface: 'wlan0',
-		sudo: true
-	}
+	const options = { command: 'arp-scan', interface: 'wlan0', sudo: true }; //arpScanner options
 	
 	arpScanner(onResult, options); //Find inverter IP address.
 	function onResult(err, data) {
-		let inverterIpAdress = '';
-	
 		if (err) throw err;
-		for (let i = 0; i < data.length; i++) {
+		for (let i = 0; i < data.length; i++) { //Search scanner results
 			if (data[i].mac === '5C:CF:7F:8E:26:00') {
 				inverterIpAdress = data[i].ip;
 			}
 		}
-	
+
 		fetch(`http://${inverterIpAdress}/cmd?cmd=json`)
 		.then(res => res.json())
 		.then(invResult => {
 			console.log(JSON.stringify(invResult));
-			utilities.getParam(clientREDIS, `driverState`).then(function (result) {
+			utilities.getParam(clientREDIS, `driverState`).then((result) => {
 				socket.emit(`systemParam`, {		//Send notification to new client
 					message: JSON.stringify({
 						weatherAPI: config.api.weather,
@@ -403,8 +374,8 @@ io.on(`connection`, (socket: any) => {
 				});
 			});
 		}, error => {
-			utilities.getParam(clientREDIS, `driverState`).then(function (result) {
-				socket.emit(`systemParam`, {		//Send notification to new client
+			utilities.getParam(clientREDIS, `driverState`).then((result) => {
+				socket.emit(`systemParam`, { //Send notification to new client
 					message: JSON.stringify({
 						weatherAPI: config.api.weather,
 						mapAPI: config.api.maps,
@@ -433,7 +404,7 @@ io.on(`connection`, (socket: any) => {
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
 		switch (data.target) {
 			case "controller_1":
-				controller_1.write(data.command, function (err: any) {
+				controller_1.write(data.command, (err: any) => {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
 					} else {
@@ -445,7 +416,7 @@ io.on(`connection`, (socket: any) => {
 				});
 				break;
 			case "controller_2":
-				controller_2.write(data.command, function (err) {
+				controller_2.write(data.command, (err) => {
 					if (err) {
 						return console.log(`Error on write: ${err.message}`);
 					} else {
@@ -457,7 +428,7 @@ io.on(`connection`, (socket: any) => {
 				});
 				break;
 			case "inverter":
-				fetch(`http://192.168.1.33/cmd?cmd=${data.command}`)
+				fetch(`http://${inverterIpAdress}/cmd?cmd=${data.command}`)
 					.then((res) => res.json())
 					.then((result) => {
 						socket.emit(`inverterResponse`, {
@@ -484,7 +455,7 @@ io.on(`connection`, (socket: any) => {
 				break;
 			case "driver":
 				if (data.type === 'instant') {
-					driver_1.write(data.command, function (err) {
+					driver_1.write(data.command, (err) => {
 						if (err) {
 							return console.log(`Error on write: ${err.message}`);
 						}
@@ -496,7 +467,7 @@ io.on(`connection`, (socket: any) => {
 		};
 	});
 
-	socket.on('reconfigure', (data) => {
+	socket.on('reconfigure', (data) => { //Reconfigure API settings. Script will restart the server.
 		exec(`sudo bash /home/pi/Public/nodeServer/restart.sh ${data.weather} ${data.map} ${data.address} ${data.controller1port} ${data.controller2port} ${data.driverPort} ${data.interval * 60000} ${data.voltageLimit} ${data.temperatureLimit} ${data.thermoDevice} ${data.mqttUName} ${data.mqttPWord}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
@@ -505,13 +476,7 @@ io.on(`connection`, (socket: any) => {
 		})
 	})
 
-	socket.on(`update`, (command) => {
-		let targets = command.target.split(" ");
-		let bashCommand = "sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh";
-		for(let device of targets){
-			bashCommand += ` ${device}`
-		}
-
+	socket.on(`update`, (command) => { //Update devices and server. You need to build device list at client side. Script will restart the server.
 		exec(`sudo bash /home/pi/Public/nodeServer/softwareUpdate.sh ${command.target}`, function (err, stdout, stderr) {
 			if (err) {
 				console.log(stderr);
@@ -521,7 +486,6 @@ io.on(`connection`, (socket: any) => {
 	})
 });
 
-setInterval(function () {
-	console.log("Uploading data to cloud");
+setInterval(() => { //Send latest measurement to remote server
 	utilities.uploadData(clientMQTT, dataObject);
 }, config.interval);

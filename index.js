@@ -44,6 +44,7 @@ var dataObject = {
  */
 //Move to redis
 var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+var inverterIpAdress = '';
 var clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
 clientREDIS.on("connect", function () {
     console.log("Redis connected");
@@ -347,7 +348,6 @@ io.on("connection", function (socket) {
     };
     arpScanner(onResult, options); //Find inverter IP address.
     function onResult(err, data) {
-        var inverterIpAdress = '';
         if (err)
             throw err;
         for (var i = 0; i < data.length; i++) {
@@ -437,7 +437,7 @@ io.on("connection", function (socket) {
                 });
                 break;
             case "inverter":
-                fetch("http://192.168.1.33/cmd?cmd=" + data.command)
+                fetch("http://" + inverterIpAdress + "/cmd?cmd=" + data.command)
                     .then(function (res) { return res.json(); })
                     .then(function (result) {
                     socket.emit("inverterResponse", {
