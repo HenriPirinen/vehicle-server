@@ -96,7 +96,8 @@ var driver_1_input = driver_1.pipe(new Delimiter({
 var thermo_input = thermo.pipe(new Delimiter({
     delimiter: "\n"
 }));
-var clientMQTT = mqtt.connect(config.address.remoteAddress, config.mqttOptions); //MQTT server address and options
+//const test = new DeviceIO('/dev/ttyACM1', driver_1, 5,10, config, io);
+var clientMQTT = mqtt.connect(config.mqttOptions.host, config.mqttOptions); //MQTT server address and options
 clientMQTT.on("connect", function () {
     clientMQTT.subscribe("vehicleData");
     clientMQTT.subscribe("vehicleExternalCommand");

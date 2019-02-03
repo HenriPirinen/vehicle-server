@@ -6,3 +6,4 @@ externals.d.ts
 regni-key.pem
 regni-csr.pem
 regni-cert.pem
+deviceIO.js

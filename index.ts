@@ -17,6 +17,8 @@ import * as arpScanner from 'arpscan';
 import * as utilities from './utilities';
 // @ts-ignore
 import * as config from './serverCfg';
+// @ts-ignore
+import DeviceIO from './DeviceIO';
 
 bluebird.promisifyAll(redis);
 
@@ -113,9 +115,11 @@ const driver_1_input = driver_1.pipe(new Delimiter({
 
 const thermo_input = thermo.pipe(new Delimiter({
 	delimiter: `\n`
-}))
+}));
 
-var clientMQTT = mqtt.connect(config.address.remoteAddress, config.mqttOptions); //MQTT server address and options
+//const test = new DeviceIO('/dev/ttyACM1', driver_1, 5,10, config, io);
+
+var clientMQTT = mqtt.connect(config.mqttOptions.host, config.mqttOptions); //MQTT server address and options
 
 clientMQTT.on(`connect`, () => {
 	clientMQTT.subscribe(`vehicleData`);
@@ -135,7 +139,7 @@ clientMQTT.on(`message`, (topic, message) => {
 });
 
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
-	let input: string = data.toString();
+	let input:string = data.toString();
 	if (input.charAt(0) === '$') {
 		if (input.substring(0, 5) === '$init') {
 			controller_1.write(`0,${config.limits.serialMax}`, (err) => {

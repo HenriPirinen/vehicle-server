@@ -12,7 +12,6 @@ function validateJSON(string) {
 exports.validateJSON = validateJSON;
 function uploadData(clientMQTT, dataObject) {
     clientMQTT.publish("vehicleData", JSON.stringify(dataObject));
-    console.log("Upload");
 }
 exports.uploadData = uploadData;
 function getParam(clientREDIS, item) {
