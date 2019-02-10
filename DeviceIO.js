@@ -1,19 +1,18 @@
 "use strict";
-exports.__esModule = true;
-var SerialPort = require("serialport");
-var Delimiter = require("parser-delimiter");
+Object.defineProperty(exports, "__esModule", { value: true });
+const SerialPort = require("serialport");
+const Delimiter = require("parser-delimiter");
 // @ts-ignore
-var utilities = require("./utilities");
+const utilities = require("./utilities");
 function initData(numOfGroups) {
-    var data = new Array();
-    for (var i = 0; i < numOfGroups; i++) {
+    let data = new Array();
+    for (let i = 0; i < numOfGroups; i++) {
         data.push({ "voltage": [], "temperature": [] });
     }
     return data;
 }
-var DeviceIO = /** @class */ (function () {
-    function DeviceIO(port, driverSer, startIdx, numOfGroups, config, websocket) {
-        var _this = this;
+class DeviceIO {
+    constructor(port, driverSer, startIdx, numOfGroups, config, websocket) {
         this.port = port;
         this.driverSer = driverSer;
         this.startIdx = startIdx;
@@ -25,57 +24,56 @@ var DeviceIO = /** @class */ (function () {
         this.driverSer = driverSer;
         this.groupData = initData(numOfGroups);
         this.ser = new SerialPort(port, { baudRate: 9600 });
-        this.serInput = this.ser.pipe(new Delimiter({ delimiter: "\n" }));
-        this.serInput.on("data", function (data) { return _this.handleInput(data); });
+        this.serInput = this.ser.pipe(new Delimiter({ delimiter: `\n` }));
+        this.serInput.on(`data`, data => this.handleInput(data));
     }
-    DeviceIO.prototype.handleInput = function (data) {
-        var input = data.toString();
+    handleInput(data) {
+        let input = data.toString();
         if (input.charAt(0) === '$') {
             if (input.substring(0, 5) === '$init') {
-                this.ser.write("0," + this.config.limits.serialMax, function (err) {
+                this.ser.write(`0,${this.config.limits.serialMax}`, (err) => {
                     if (err)
-                        return console.log("Controller: Error on write: " + err.message);
+                        return console.log(`Controller: Error on write: ${err.message}`);
                 });
             }
             else if (input.substring(0, 14) === '$!serialCharge') {
-                this.driverSer.write('SC0', function (err) {
+                this.driverSer.write('SC0', (err) => {
                     if (err)
-                        return console.log("Driver: Error on write: " + err.message);
+                        return console.log(`Driver: Error on write: ${err.message}`);
                 });
             }
         }
         else if (utilities.validateJSON(input)) { //Validate message from arduino
-            var newData = JSON.parse(input);
+            let newData = JSON.parse(input);
             if (newData.type === "data") {
-                for (var i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
+                for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
                     this.groupData[newData.Group - this.startIdx].voltage[i] = newData.voltage[i];
                     this.groupData[newData.Group - this.startIdx].temperature[i] = newData.temperature[i];
                 }
-                this.websocket.sockets.emit("dataset", {
+                this.websocket.sockets.emit(`dataset`, {
                     message: input,
-                    handle: "Controller_1"
+                    handle: `Controller_1`
                 });
             }
             else if (newData.type === "log") {
-                this.websocket.sockets.emit("systemLog", {
+                this.websocket.sockets.emit(`systemLog`, {
                     message: input,
-                    handle: "Controller_1"
+                    handle: `Controller_1`
                 });
             }
             else if (newData.type === "param") {
                 if (newData.name === "balanceStatus") {
                     //groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
                 }
-                this.websocket.sockets.emit("systemState", {
+                this.websocket.sockets.emit(`systemState`, {
                     message: input,
-                    handle: "Controller_1"
+                    handle: `Controller_1`
                 });
             }
         }
-    };
-    DeviceIO.prototype.write = function (output) {
+    }
+    write(output) {
         console.log(output);
-    };
-    return DeviceIO;
-}());
-exports["default"] = DeviceIO;
+    }
+}
+exports.default = DeviceIO;

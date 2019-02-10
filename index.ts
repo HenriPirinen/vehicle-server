@@ -25,20 +25,14 @@ bluebird.promisifyAll(redis);
 // @ts-ignore
 process.title = 'regni-server';
 
-var dataObject = {
-	'group': [
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] }, //Group 0 - 4
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] },
-		{ "voltage": [3.3, 3.4, 3.5, 3.6, 3.55, 3.45, 3.35, 3.23], "temperature": [1, 1, 1, 1, 1, 1, 1, 1] } //Group 5 - 9
-	]
-};
+let dataObject = {'group':[]};
+for(let i = 0; i <= 9; i++){ //Initialize dataObject
+	dataObject.group.push({"voltage":[],"temperature":[]});
+	for(let x = 0; x <= 7; x++){
+		dataObject.group[i].voltage.push(0);
+		dataObject.group[i].temperature.push(0);
+	}
+}
 
 /** 
  * @param {integer array} groupChargeStatus
@@ -48,8 +42,19 @@ var dataObject = {
  */
 
 //Move to redis
-var groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-let inverterIpAdress = '';
+
+let groupChargeStatus = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+let inverterIpAdress = null;
+const options = { command: 'arp-scan', interface: 'wlan0', sudo: true }; //arpScanner options
+arpScanner((err, data) => {
+	if (err) throw err;
+	for (let i = 0; i < data.length; i++) { //Search scanner results
+		if (data[i].mac === '5C:CF:7F:8E:26:00') {
+			inverterIpAdress = data[i].ip;
+		}
+	}
+}, options); //Find inverter IP address.
 
 const clientREDIS = redis.createClient(); //Creates new redis client, redis will que commands from client
 clientREDIS.on(`connect`, () => {
@@ -139,7 +144,7 @@ clientMQTT.on(`message`, (topic, message) => {
 });
 
 controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
-	let input:string = data.toString();
+	let input: string = data.toString();
 	if (input.charAt(0) === '$') {
 		if (input.substring(0, 5) === '$init') {
 			controller_1.write(`0,${config.limits.serialMax}`, (err) => {
@@ -316,7 +321,7 @@ thermo_input.on(`data`, (data: any) => {
 					handle: `Thermo`
 				});
 			} else if (_data.type === 'log') {
-				io.sockets.emit(`thermalWarning`,{
+				io.sockets.emit(`thermalWarning`, {
 					message: _input,
 					handle: `Thermo`
 				});
@@ -331,7 +336,7 @@ thermo_input.on(`data`, (data: any) => {
 	}
 });
 
-io.on(`connection`, (socket: any) => {
+io.on(`connection`, socket => {
 	if (process.argv[2] !== undefined) { //If server starts with argument i.e after software update.
 		socket.emit(`systemState`, {
 			message: JSON.stringify({ message: process.argv[2] }),
@@ -339,70 +344,58 @@ io.on(`connection`, (socket: any) => {
 		})
 	}
 
-	const options = { command: 'arp-scan', interface: 'wlan0', sudo: true }; //arpScanner options
-	
-	arpScanner(onResult, options); //Find inverter IP address.
-	function onResult(err, data) {
-		if (err) throw err;
-		for (let i = 0; i < data.length; i++) { //Search scanner results
-			if (data[i].mac === '5C:CF:7F:8E:26:00') {
-				inverterIpAdress = data[i].ip;
-			}
-		}
-
+	if (inverterIpAdress !== null) {
 		fetch(`http://${inverterIpAdress}/cmd?cmd=json`)
-		.then(res => res.json())
-		.then(invResult => {
-			console.log(JSON.stringify(invResult));
-			utilities.getParam(clientREDIS, `driverState`).then((result) => {
-				socket.emit(`systemParam`, {		//Send notification to new client
-					message: JSON.stringify({
-						weatherAPI: config.api.weather,
-						mapAPI: config.api.maps,
-						remoteAddress: config.address.remoteAddress,
-						controller_1: config.port.controllerPort_1,
-						controller_2: config.port.controllerPort_2,
-						driverPort: config.port.driverPort,
-						driverState: result[0],
-						remoteUpdateInterval: config.interval / 60000,
-						groupChargeStatus: groupChargeStatus,
-						thermoDevice: config.port.thermo,
-						temperatureLimit: config.limits.thermoMax,
-						voltageLimit: config.limits.serialMax,
-						isCharging: false,
-						inverterValues: JSON.stringify(invResult),
-						mqttUName: config.mqttOptions.username,
-						mqttPWord: config.mqttOptions.password 
-					}),
-					handle: `Server`
+			.then(res => res.json())
+			.then(invResult => {
+				utilities.getParam(clientREDIS, `driverState`).then((result) => {
+					socket.emit(`systemParam`, {		//Send notification to new client
+						message: JSON.stringify({
+							weatherAPI: config.api.weather,
+							mapAPI: config.api.maps,
+							remoteAddress: config.address.remoteAddress,
+							controller_1: config.port.controllerPort_1,
+							controller_2: config.port.controllerPort_2,
+							driverPort: config.port.driverPort,
+							driverState: result[0],
+							remoteUpdateInterval: config.interval / 60000,
+							groupChargeStatus: groupChargeStatus,
+							thermoDevice: config.port.thermo,
+							temperatureLimit: config.limits.thermoMax,
+							voltageLimit: config.limits.serialMax,
+							isCharging: false,
+							inverterValues: JSON.stringify(invResult),
+							mqttUName: config.mqttOptions.username,
+							mqttPWord: config.mqttOptions.password
+						}),
+						handle: `Server`
+					});
 				});
+			})
+	} else {
+		utilities.getParam(clientREDIS, `driverState`).then((result) => {
+			socket.emit(`systemParam`, { //Send notification to new client
+				message: JSON.stringify({
+					weatherAPI: config.api.weather,
+					mapAPI: config.api.maps,
+					remoteAddress: config.address.remoteAddress,
+					controller_1: config.port.controllerPort_1,
+					controller_2: config.port.controllerPort_2,
+					driverPort: config.port.driverPort,
+					driverState: result[0],
+					remoteUpdateInterval: config.interval / 60000,
+					groupChargeStatus: groupChargeStatus,
+					thermoDevice: config.port.thermo,
+					temperatureLimit: config.limits.thermoMax,
+					voltageLimit: config.limits.serialMax,
+					isCharging: false,
+					inverterValues: null,
+					mqttUName: config.mqttOptions.username,
+					mqttPWord: config.mqttOptions.password
+				}),
+				handle: `Server`
 			});
-		}, error => {
-			utilities.getParam(clientREDIS, `driverState`).then((result) => {
-				socket.emit(`systemParam`, { //Send notification to new client
-					message: JSON.stringify({
-						weatherAPI: config.api.weather,
-						mapAPI: config.api.maps,
-						remoteAddress: config.address.remoteAddress,
-						controller_1: config.port.controllerPort_1,
-						controller_2: config.port.controllerPort_2,
-						driverPort: config.port.driverPort,
-						driverState: result[0],
-						remoteUpdateInterval: config.interval / 60000,
-						groupChargeStatus: groupChargeStatus,
-						thermoDevice: config.port.thermo,
-						temperatureLimit: config.limits.thermoMax,
-						voltageLimit: config.limits.serialMax,
-						isCharging: false,
-						inverterValues: null,
-						mqttUName: config.mqttOptions.username,
-						mqttPWord: config.mqttOptions.password
-					}),
-					handle: `Server`
-				});
-			});
-		}
-		)
+		})
 	}
 
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
@@ -439,8 +432,7 @@ io.on(`connection`, (socket: any) => {
 							message: JSON.stringify(result),
 							handle: `Server`
 						});
-					},
-						(result) => {
+					}, (result) => {
 							socket.emit(`inverterResponse`, {
 								message: result.toString(),
 								handle: `Server`
@@ -493,3 +485,26 @@ io.on(`connection`, (socket: any) => {
 setInterval(() => { //Send latest measurement to remote server
 	utilities.uploadData(clientMQTT, dataObject);
 }, config.interval);
+
+let groupNum = 0;
+function demoData(group){ //Generate random measurements
+	let object = {"Group":group,"type":"data","voltage":[],"temperature":[]};
+	for(let i = 0; i <= 7; i++){
+		object.voltage.push(Math.round((Math.random()*(3.9-3)+3) * 100) / 100);
+		object.temperature.push(Math.round((Math.random()*(90-20)+20) * 100) / 100);
+	}
+
+	io.sockets.emit(`dataset`, { //Send dataset to client via websocket
+		message: JSON.stringify(object),
+		handle: groupNum < 4 ? `Controller_1` : `Controller_2`
+	});
+	io.sockets.emit(`dataset`, { //Send dataset to client via websocket
+		message: JSON.stringify({"origin":"Thermocouple","type":"measurement","value":"20.2,21.5"}),
+		handle: `Thermo`
+	});
+}
+
+/*setInterval(() => {
+	demoData(groupNum);
+	groupNum === 9 ? groupNum = 0 : groupNum++;
+},1000)*/

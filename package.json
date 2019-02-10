@@ -12,6 +12,7 @@
   "author": "Henri Pirinen",
   "license": "MIT",
   "dependencies": {
+    "@types/es6-promise": "^3.3.0",
     "@types/node": "^10.3.5",
     "arpscan": "^0.6.0",
     "bluebird": "^3.5.1",
@@ -20,7 +21,7 @@
     "node-fetch": "^2.1.2",
     "parser-delimiter": "^1.0.2",
     "redis": "^2.8.0",
-    "serialport": "^6.1.1",
+    "serialport": "^7.1.4",
     "socket.io": "^2.1.0"
   },
   "devDependencies": {
