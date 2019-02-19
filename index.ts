@@ -18,21 +18,12 @@ import * as utilities from './utilities';
 // @ts-ignore
 import * as config from './serverCfg';
 // @ts-ignore
-import DeviceIO from './DeviceIO';
+import ControllerIO from './DeviceIO';
 
 bluebird.promisifyAll(redis);
 
 // @ts-ignore
 process.title = 'regni-server';
-
-let dataObject = {'group':[]};
-for(let i = 0; i <= 9; i++){ //Initialize dataObject
-	dataObject.group.push({"voltage":[],"temperature":[]});
-	for(let x = 0; x <= 7; x++){
-		dataObject.group[i].voltage.push(0);
-		dataObject.group[i].temperature.push(0);
-	}
-}
 
 /** 
  * @param {integer array} groupChargeStatus
@@ -63,7 +54,7 @@ clientREDIS.on(`connect`, () => {
 
 clientREDIS.set(`driverState`, `0000`); //Driver, Reverse, Cruiser
 clientREDIS.set(`groupChargeStatus`, `0,0,0,0,0,0,0,0,0,0`); //Group 1, Group 2...
-clientREDIS.set(`charging`, `true`);
+clientREDIS.set(`charging`, `false`);
 
 const sslOptions = {
 	key: fs.readFileSync('regni-key.pem'),
@@ -90,14 +81,6 @@ app.get('/*', function (req, res) {
 
 const io = socket(server);
 
-const controller_1 = new SerialPort(config.port.controllerPort_1, { //initiate USB
-	baudRate: 9600
-});
-
-const controller_2 = new SerialPort(config.port.controllerPort_2, {
-	baudRate: 9600
-});
-
 const driver_1 = new SerialPort(config.port.driverPort, {
 	baudRate: 9600
 });
@@ -105,14 +88,6 @@ const driver_1 = new SerialPort(config.port.driverPort, {
 const thermo = new SerialPort(config.port.thermo, {
 	baudRate: 9600
 });
-
-const controller_1_input = controller_1.pipe(new Delimiter({ //Line change on USB == new dataset
-	delimiter: `\n`
-}));
-
-const controller_2_input = controller_2.pipe(new Delimiter({
-	delimiter: `\n`
-}));
 
 const driver_1_input = driver_1.pipe(new Delimiter({
 	delimiter: `\n`
@@ -122,7 +97,25 @@ const thermo_input = thermo.pipe(new Delimiter({
 	delimiter: `\n`
 }));
 
-//const test = new DeviceIO('/dev/ttyACM1', driver_1, 5,10, config, io);
+const ctrl_1 = new ControllerIO({
+	port: config.port.controllerPort_1,
+	startIdx: 0,
+	numOfGroups: 5,
+	serialMax: config.limits.serialMax,
+	websocket: io,
+	redis: clientREDIS,
+	serDriver: driver_1
+});
+
+const ctrl_2 = new ControllerIO({
+	port: config.port.controllerPort_2,
+	startIdx: 5,
+	numOfGroups: 5,
+	serialMax: config.limits.serialMax,
+	websocket: io,
+	redis: clientREDIS,
+	serDriver: driver_1
+});
 
 var clientMQTT = mqtt.connect(config.mqttOptions.host, config.mqttOptions); //MQTT server address and options
 
@@ -140,88 +133,6 @@ clientMQTT.on(`message`, (topic, message) => {
 				return console.log(`Driver: Error on write: ${err.message}`);
 			}
 		});
-	}
-});
-
-controller_1_input.on(`data`, data => { //Real, Read data from 1st USB-port
-	let input: string = data.toString();
-	if (input.charAt(0) === '$') {
-		if (input.substring(0, 5) === '$init') {
-			controller_1.write(`0,${config.limits.serialMax}`, (err) => {
-				if (err) return console.log(`Controller: Error on write: ${err.message}`);
-			});
-		} else if (input.substring(0, 14) === '$!serialCharge') {
-			driver_1.write('SC0', (err) => {
-				if (err) return console.log(`Driver: Error on write: ${err.message}`);
-			});
-		}
-	} else if (utilities.validateJSON(input)) { //Validate message from arduino
-		let newData = JSON.parse(input);
-		if (newData.type === "data") {
-			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
-				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
-				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			}
-
-			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
-				message: input,
-				handle: `Controller_1`
-			});
-		} else if (newData.type === "log") {
-			io.sockets.emit(`systemLog`, { //Send dataset to client via websocket
-				message: input,
-				handle: `Controller_1`
-			});
-		} else if (newData.type === "param") {
-			if (newData.name === "balanceStatus") {
-				groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
-			}
-			io.sockets.emit(`systemState`, { //Send log to client via websocket
-				message: input,
-				handle: `Controller_1`
-			});
-		}
-	}
-});
-
-controller_2_input.on(`data`, data => { //Read data from 2nd USB-port
-	let input: string = data.toString();
-	if (input.charAt(0) === '$') {
-		if (input.substring(0, 5) === '$init') {
-			controller_2.write(`5,${config.limits.serialMax}`, (err) => {
-				if (err) return console.log(`Controller: Error on write: ${err.message}`);
-			});
-		} else if (input.substring(0, 14) === '$!serialCharge') {
-			driver_1.write('SC0', (err) => {
-				if (err) return console.log(`Driver: Error on write: ${err.message}`);
-			});
-		}
-	} else if (utilities.validateJSON(input)) { //Validate message from arduino
-		let newData = JSON.parse(input);
-		if (newData.type === "data") {
-			for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
-				dataObject.group[newData.Group].voltage[i] = newData.voltage[i];
-				dataObject.group[newData.Group].temperature[i] = newData.temperature[i];
-			}
-
-			io.sockets.emit(`dataset`, { //Send dataset to client via websocket
-				message: input,
-				handle: `Controller_2`
-			});
-		} else if (newData.type === "log") {
-			io.sockets.emit(`systemLog`, { //Send log to client via websocket
-				message: input,
-				handle: `Controller_2`
-			});
-		} else if (newData.type === "param") {
-			if (newData.name === "balanceStatus") {
-				groupChargeStatus[parseInt(newData.value.charAt(0), 10) + 5] = parseInt(newData.value.charAt(1), 10);
-			}
-			io.sockets.emit(`systemState`, { //Send log to client via websocket
-				message: input,
-				handle: `Controller_2`
-			});
-		}
 	}
 });
 
@@ -260,12 +171,8 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$charging `:
-				controller_1.write('C1', (err) => {
-					if (err) return console.log(`Controller: Error on write: ${err.message}`);
-				});
-				controller_2.write('C1', (err) => {
-					if (err) return console.log(`Controller: Error on write: ${err.message}`);
-				});
+				ctrl_1.write('C1');
+				ctrl_2.write('C1');
 				io.sockets.emit(`systemState`, {
 					message: JSON.stringify({ origin: "Driver", param: "isCharging", value: true }),
 					handle: `Driver`,
@@ -273,12 +180,8 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				});
 				break;
 			case `$!charging`:
-				controller_1.write('C0', (err) => {
-					if (err) return console.log(`Controller: Error on write: ${err.message}`);
-				});
-				controller_2.write('C0', (err) => {
-					if (err) return console.log(`Controller: Error on write: ${err.message}`);
-				});
+				ctrl_1.write('C0');
+				ctrl_2.write('C0');
 				io.sockets.emit(`systemState`, {
 					message: JSON.stringify({ origin: "Driver", param: "isCharging", value: false }),
 					handle: `Driver`,
@@ -292,12 +195,8 @@ driver_1_input.on(`data`, (data: any) => { //Real, Read data from 1st USB-port
 				break;
 			case `$B1`:
 				console.log(`Start balance`);
-				controller_1.write('$B1', (err) => {
-					if (err) return console.log(`Controller: Error on write: ${err.message}`);
-				});
-				controller_2.write('$B1', (err) => {
-					if (err) return console.log(`Controller: Error on write: ${err.message}`);
-				});
+				ctrl_1.write('$B1');
+				ctrl_2.write('$B1');
 				io.sockets.emit(`systemState`, {
 					message: JSON.stringify({ origin: "Driver", param: "isBalancing", value: true }),
 					handle: `Driver`,
@@ -401,28 +300,10 @@ io.on(`connection`, socket => {
 	socket.on(`command`, (data: any) => { //Write command to arduino via USB
 		switch (data.target) {
 			case "controller_1":
-				controller_1.write(data.command, (err: any) => {
-					if (err) {
-						return console.log(`Error on write: ${err.message}`);
-					} else {
-						socket.emit(`systemLog`, {		//Send notification to new client 
-							message: JSON.stringify({ origin: "Server", msg: `Command to 1st. controller: ${data.command}`, importance: `Medium` }),
-							handle: `Server`
-						});
-					}
-				});
+				ctrl_1.write(data.command);
 				break;
 			case "controller_2":
-				controller_2.write(data.command, (err) => {
-					if (err) {
-						return console.log(`Error on write: ${err.message}`);
-					} else {
-						socket.emit(`systemLog`, {		//Send notification to new client 
-							message: JSON.stringify({ origin: "Server", msg: `Command to 2nd. controller: ${data.command}`, importance: `Medium` }),
-							handle: `Server`
-						});
-					}
-				});
+				ctrl_2.write(data.command);
 				break;
 			case "inverter":
 				fetch(`http://${inverterIpAdress}/cmd?cmd=${data.command}`)
@@ -483,7 +364,7 @@ io.on(`connection`, socket => {
 });
 
 setInterval(() => { //Send latest measurement to remote server
-	utilities.uploadData(clientMQTT, dataObject);
+	utilities.uploadData(clientMQTT, {"group": (ctrl_1.getData()).concat(ctrl_2.getData())});
 }, config.interval);
 
 let groupNum = 0;
@@ -491,7 +372,7 @@ function demoData(group){ //Generate random measurements
 	let object = {"Group":group,"type":"data","voltage":[],"temperature":[]};
 	for(let i = 0; i <= 7; i++){
 		object.voltage.push(Math.round((Math.random()*(3.9-3)+3) * 100) / 100);
-		object.temperature.push(Math.round((Math.random()*(90-20)+20) * 100) / 100);
+		object.temperature.push(Math.round((Math.random()*(70-60)+60) * 100) / 100);
 	}
 
 	io.sockets.emit(`dataset`, { //Send dataset to client via websocket

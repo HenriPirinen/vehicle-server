@@ -1,15 +1,16 @@
-declare class DeviceIO {
-    private port;
-    private driverSer;
-    private startIdx;
-    private numOfGroups;
-    private config;
-    private websocket;
-    groupData: any;
+declare class ControllerIO {
+    private params;
+    private groupData;
     private ser;
     private serInput;
-    constructor(port: string, driverSer: any, startIdx: number, numOfGroups: number, config: any, websocket: any);
+    private serDriver;
+    private serialMax;
+    private websocket;
+    private startIdx;
+    private redis;
+    constructor(params: any);
     handleInput(data: any): void;
-    write(output: any): void;
+    getData(): any;
+    write(command: any): void;
 }
-export default DeviceIO;
+export default ControllerIO;

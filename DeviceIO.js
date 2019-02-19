@@ -6,74 +6,68 @@ const Delimiter = require("parser-delimiter");
 const utilities = require("./utilities");
 function initData(numOfGroups) {
     let data = new Array();
-    for (let i = 0; i < numOfGroups; i++) {
-        data.push({ "voltage": [], "temperature": [] });
+    for (let i = 1; i <= numOfGroups; i++) {
+        data.push({ "voltage": [0, 0, 0, 0, 0, 0, 0, 0], "temperature": [0, 0, 0, 0, 0, 0, 0, 0] });
     }
     return data;
 }
-class DeviceIO {
-    constructor(port, driverSer, startIdx, numOfGroups, config, websocket) {
-        this.port = port;
-        this.driverSer = driverSer;
-        this.startIdx = startIdx;
-        this.numOfGroups = numOfGroups;
-        this.config = config;
-        this.websocket = websocket;
-        this.websocket = websocket;
-        this.config = config;
-        this.driverSer = driverSer;
-        this.groupData = initData(numOfGroups);
-        this.ser = new SerialPort(port, { baudRate: 9600 });
+class ControllerIO {
+    constructor(params) {
+        this.params = params;
+        this.websocket = params.websocket;
+        this.serialMax = params.serialMax;
+        this.groupData = initData(params.numOfGroups);
+        this.startIdx = params.startIdx;
+        this.redis = params.redis;
+        this.serDriver = params.serDriver;
+        this.ser = new SerialPort(params.port, { baudRate: 9600 });
         this.serInput = this.ser.pipe(new Delimiter({ delimiter: `\n` }));
         this.serInput.on(`data`, data => this.handleInput(data));
     }
     handleInput(data) {
         let input = data.toString();
-        if (input.charAt(0) === '$') {
-            if (input.substring(0, 5) === '$init') {
-                this.ser.write(`0,${this.config.limits.serialMax}`, (err) => {
+        if (input.charAt(0) === '$') { //If input is a command
+            if (input.substring(0, 5) === '$init') { //Return startup values to Controller
+                this.ser.write(`${this.startIdx},${this.serialMax}`, (err) => {
                     if (err)
                         return console.log(`Controller: Error on write: ${err.message}`);
                 });
             }
-            else if (input.substring(0, 14) === '$!serialCharge') {
-                this.driverSer.write('SC0', (err) => {
+            else if (input.substring(0, 14) === '$!serialCharge') { //Command to stop serialcharging
+                this.serDriver.write('SC0', (err) => {
                     if (err)
                         return console.log(`Driver: Error on write: ${err.message}`);
                 });
             }
         }
-        else if (utilities.validateJSON(input)) { //Validate message from arduino
+        else if (utilities.validateJSON(input)) { //If input is JSON message
             let newData = JSON.parse(input);
-            if (newData.type === "data") {
+            if (newData.type === "data") { //Input is an measurement => update group data object
                 for (let i = 0; i < newData.voltage.length; i++) { //voltage.length == temperature.length
                     this.groupData[newData.Group - this.startIdx].voltage[i] = newData.voltage[i];
                     this.groupData[newData.Group - this.startIdx].temperature[i] = newData.temperature[i];
                 }
-                this.websocket.sockets.emit(`dataset`, {
-                    message: input,
-                    handle: `Controller_1`
-                });
-            }
-            else if (newData.type === "log") {
-                this.websocket.sockets.emit(`systemLog`, {
-                    message: input,
-                    handle: `Controller_1`
-                });
             }
             else if (newData.type === "param") {
                 if (newData.name === "balanceStatus") {
-                    //groupChargeStatus[parseInt(newData.value.charAt(0), 10)] = parseInt(newData.value.charAt(1), 10);
+                    utilities.getParam(this.redis, 'groupChargeStatus').then(result => {
+                        let newStatus = result[0].split(","); //Make an array from the result
+                        newStatus[parseInt(newData.value.charAt(0), 10) + this.startIdx] = newData.value.charAt(1); //Update array
+                        this.redis.set(`groupChargeStatus`, newStatus.toString()); //Set updated array as new groupChargeStatus to Redis
+                    });
                 }
-                this.websocket.sockets.emit(`systemState`, {
-                    message: input,
-                    handle: `Controller_1`
-                });
             }
+            utilities.report(this.websocket.sockets, 'Controller_1', input); //Send JSON message to the UI
         }
     }
-    write(output) {
-        console.log(output);
+    getData() {
+        return this.groupData;
+    }
+    write(command) {
+        this.ser.write(command.toString(), (err) => {
+            if (err)
+                return console.log(`Controller: Error on write: ${err.message}`);
+        });
     }
 }
-exports.default = DeviceIO;
+exports.default = ControllerIO;

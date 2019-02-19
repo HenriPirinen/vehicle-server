@@ -33,11 +33,34 @@ function getParam(clientREDIS, item) {
 exports.getParam = getParam;
 function fetchInverter(command, ip) {
     return __awaiter(this, void 0, void 0, function* () {
-        //await fetch(`http://${ip}/cmd?cmd=${command}`)
-        const result = yield fetch(`https://jsonplaceholder.typicode.com/todos/1`)
+        const result = yield fetch(`http://${ip}/cmd?cmd=${command}`)
             .then(res => res.json())
             .then(invResult => { return JSON.stringify(invResult); }, res => { return res.toString(); });
         return result;
     });
 }
 exports.fetchInverter = fetchInverter;
+function report(socket, broker, message) {
+    const msg = JSON.parse(message);
+    switch (msg.type) {
+        case 'data':
+            socket.emit(`dataset`, {
+                message: message,
+                handle: broker
+            });
+            break;
+        case 'log':
+            socket.emit(`systemLog`, {
+                message: message,
+                handle: broker
+            });
+            break;
+        case 'param':
+            socket.emit(`systemState`, {
+                message: message,
+                handle: broker
+            });
+            break;
+    }
+}
+exports.report = report;

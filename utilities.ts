@@ -22,10 +22,33 @@ export function getParam(clientREDIS, item) {
 }
 
 export async function fetchInverter(command, ip) {
-	//await fetch(`http://${ip}/cmd?cmd=${command}`)
-	const result = await fetch(`https://jsonplaceholder.typicode.com/todos/1`)
+	const result = await fetch(`http://${ip}/cmd?cmd=${command}`)
 		.then(res => res.json())
 		.then(invResult => { return JSON.stringify(invResult) }, res => { return res.toString() });
 		
 	return result;
+}
+
+export function report(socket,broker,message){
+	const msg = JSON.parse(message);
+	switch(msg.type){
+		case 'data':
+		socket.emit(`dataset`, { //Send dataset to client via websocket
+			message: message,
+			handle: broker
+		});	
+		break;
+		case 'log':
+		socket.emit(`systemLog`, { //Send dataset to client via websocket
+			message: message,
+			handle: broker
+		});
+		break;
+		case 'param':
+		socket.emit(`systemState`, { //Send log to client via websocket
+			message: message,
+			handle: broker
+		});
+		break;
+	}
 }
